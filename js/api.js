@@ -23,10 +23,12 @@
     if (raw) { try { return JSON.parse(raw); } catch (e) {} }
     return {
       players: [], game: null,
-      settings: { phase: 'signup', budget: 500, eventName: 'Favor Christmas Party 2027', opensAt: '2026-10-27T00:00:00+08:00', deadline: '2026-10-30T23:59:00+08:00', partyDate: 'Dec 19', adminPassword: 'demo', salt: 'demo-salt' }
+      settings: { phase: 'signup', budget: 500, eventName: 'Favor Christmas Party 2027', opensAt: '', deadline: '2026-10-30T23:59:00+08:00', partyDate: 'Dec 19', adminPassword: 'demo', salt: 'demo-salt' }
     };
   }
   var mem = demoLoad();
+  // Sign-ups are open now: clear the old Oct 27 opening from earlier demo data.
+  if (mem.settings && mem.settings.opensAt === '2026-10-27T00:00:00+08:00') mem.settings.opensAt = '';
   function persist() { try { localStorage.setItem(DEMO_KEY, JSON.stringify(mem)); } catch (e) {} }
   function copy(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
 
