@@ -337,8 +337,9 @@
       'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
     var box = openModal(
       '<div class="center">' + KNIT.text('Psst', { cls: 'modal-knit' }) +
-      '<h2 style="margin-top:12px">Get a reminder</h2>' +
-      '<p class="muted">Names are drawn ' + esc(fmtDeadline(s.deadline)) + '. Add a reminder and your phone will ping you when it\'s time to see who you got.</p>' +
+      '<h2 style="margin-top:12px">Don\'t want to forget?</h2>' +
+      '<p class="remind-sub">Let us remind you.</p>' +
+      '<p class="muted">Your phone will ping you ' + esc(fmtDeadline(s.deadline)) + ', when it\'s time to see who you got.</p>' +
       '<div style="display:grid;gap:10px">' +
         '<a class="btn" id="icsBtn" href="#">iPhone or other calendar</a>' +
         '<a class="btn secondary" href="' + esc(g) + '" target="_blank" rel="noopener">Google Calendar</a>' +
