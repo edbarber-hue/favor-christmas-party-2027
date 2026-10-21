@@ -507,3 +507,34 @@ details.more .card { margin-top: 10px; }
 body.stage-mode .walk-bar { position: fixed; left: 0; right: 0; bottom: 0; top: auto; opacity: .92; }
 @media (max-width: 640px) { .wb-steps button { font-size: 0; padding: 4px; } .wb-steps b { font-size: .78rem; } }
 body.walking.stage-mode .trivia-stage { padding-bottom: 84px; }
+
+/* ---------- Next steps as slides ---------- */
+.next-cta { margin: 6px 0 16px; font-size: 1.1rem; padding: 18px 24px; }
+.card.mine.lower { margin-top: 64px; opacity: .92; }
+.slide { text-align: center; padding: 6px 4px 0; min-height: 300px; display: flex; flex-direction: column; align-items: center; }
+.slide-count { font-size: .85rem; color: var(--ink-soft); margin-bottom: 14px; }
+.slide-knit { height: 46px; color: var(--red); margin: 0 auto 14px; }
+.slide h2 { margin: 0 0 10px; }
+.slide p { font-size: 1.08rem; max-width: 34ch; margin: 0 auto 14px; }
+.slide .effort, .slide .important { display: block; width: 100%; max-width: 360px; margin: 6px auto 0; padding: 12px 14px; font-size: 1rem; }
+.lbl-big { margin: 8px auto 0; padding: 14px 18px; border: 2.5px dashed var(--red); border-radius: 6px; background: #fff; color: var(--red); font-weight: 900; font-stretch: 112%; font-size: 1.3rem; }
+.slide-dots i { background: #d4c4a4; }
+.slide-dots i.on { background: var(--red); }
+.slide-nav { margin-top: 6px; }
+
+/* ---------- Trivia welcome screen ---------- */
+.ts-intro .knit-band { margin: 18px 0 0; }
+.ts-intro .ts-body { gap: 18px; }
+.ti-logo { width: clamp(70px, 8vw, 110px); height: auto; }
+.ti-event { font-weight: 800; font-stretch: 115%; text-transform: uppercase; letter-spacing: .04em; font-size: clamp(1.1rem, 2.4vw, 2rem); color: var(--cream); }
+.ti-knit { height: clamp(90px, 16vw, 200px); color: var(--pink); margin: 0 auto; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.ti-rules { font-size: clamp(1rem, 1.8vw, 1.5rem); opacity: .85; margin: 0; }
+/* Welcome screen always fits one screen height */
+.ts-intro { height: 100vh; min-height: 0; overflow: hidden; }
+.ts-intro .knit-band { height: clamp(28px, 5vh, 52px); flex: none; }
+.ts-intro .ts-body { padding: 1vh 2vw; gap: 1.6vh; min-height: 0; }
+.ts-intro .ti-logo { width: auto; height: clamp(48px, 12vh, 110px); }
+.ts-intro .ti-knit { height: clamp(60px, 20vh, 200px); }
+.ts-intro .ts-controls { flex: none; }
+body.walking.stage-mode .ts-intro { padding-bottom: 80px; }
+@media (max-width: 640px) { body.walking.stage-mode .ts-intro, body.walking.stage-mode .trivia-stage { padding-bottom: 116px; } }

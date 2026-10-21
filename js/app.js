@@ -264,7 +264,6 @@
             '</div>'
           );
           $('#remindBtn').onclick = function () { openRemind(info); };
-          if (!r.updated) setTimeout(function () { openRemind(info); }, 1400);
         }).catch(function (err) { busy(btn, false); showError('#jErr', err); });
       });
     }).catch(function (e) { render('<div class="error">' + esc(e.message) + '</div>'); });
@@ -327,7 +326,7 @@
       $('#openGift').onclick = function () {
         if (test) d._opened = true; else store('opened-' + d.name, 1);
         var t = $('.ticket'); t.classList.add('opening');
-        setTimeout(function () { d._justOpened = true; meDashboard(d); confetti(170); }, 650);
+        setTimeout(function () { meDashboard(d); confetti(170); }, 650);
       };
       return;
     } else if (d.shoppingFor) {
@@ -335,15 +334,15 @@
         '<div class="label">You have Mystery Person #' + d.shoppingFor.no + '</div>' +
         '<div class="knit-name">' + knitLines(d.shoppingFor.alias || ('Mystery #' + d.shoppingFor.no)) + '</div>' +
         '<div class="sub">Wait until party day to find out who they are.</div></div>' +
-        '<div class="card"><h3>Here\'s what they\'re asking for</h3>' + wishListHTML(d.shoppingFor.wishes) +
-        '<button class="btn block" id="nextSteps" style="margin-top:20px">Click for my next steps</button></div>';
+        '<div class="card"><h3>Here\'s what they\'re asking for</h3>' + wishListHTML(d.shoppingFor.wishes) + '</div>' +
+        '<button class="btn cream block next-cta" id="nextSteps">Want to know your next steps?</button>';
     }
     if (s.phase === 'revealed') {
       html += '<div class="card center"><h2>The reveal is on</h2>' +
         (d.myMystery ? '<p>You were #' + d.myMystery + (d.myAlias ? ', ' + esc(d.myAlias) : '') + '. Find bag #' + d.myMystery + ' and start trading.</p>' : '') +
         '<a class="btn" href="#/reveal">Watch the reveal</a></div>';
     }
-    html += '<div class="card"><div class="row"><h3 style="margin:0">My wishlist</h3><span class="spacer"></span>' +
+    html += '<div class="card mine' + (d.shoppingFor ? ' lower' : '') + '"><div class="row"><h3 style="margin:0">My wishlist</h3><span class="spacer"></span>' +
       (s.phase !== 'revealed' && !test && !s.editsClosed ? '<a class="btn secondary small" href="#/join">Edit my wishlist</a>' : '') + '</div>' +
       '<div style="margin-top:6px">' + wishListHTML(d.wishes) + '</div></div>' +
       (test ? '' : '<p class="center"><button class="btn ghost small" id="logout" style="color:var(--cream)">Log out</button></p>');
@@ -351,31 +350,40 @@
     if (!test && d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
     if ($('#logout')) $('#logout').onclick = function () { store('me', null); meLogin(); };
     if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(s); };
-    if ($('#nextSteps')) {
-      $('#nextSteps').onclick = function () { openNextSteps(d.shoppingFor, s); };
-      // Show the steps on their own the first time someone sees their person.
-      if (d._justOpened) { d._justOpened = false; setTimeout(function () { openNextSteps(d.shoppingFor, s); }, 1800); }
-    }
+    if ($('#nextSteps')) $('#nextSteps').onclick = function () { openNextSteps(d.shoppingFor, s); };
   }
 
-  // What to do after you see your Mystery Person.
+  // What to do after you see your Mystery Person: one slide per step.
   function openNextSteps(t, s) {
     var label = '#' + t.no + (t.alias ? ' ' + t.alias : '');
-    var box = openModal(
-      '<div class="steps-head">' + KNIT.text('Next', { cls: 'modal-knit' }) + '<h2>Your next steps</h2></div>' +
-      '<ol class="next-steps">' +
-        '<li><b>Shop for their gift.</b> Pick something from their list, around ' + peso(s.budget) + '.</li>' +
-        '<li><b>Box it up and wrap it.</b> Put it in a big box or container and wrap it in Christmas wrapping paper.' +
-          '<div class="effort">Please don\'t just put it in a paper bag. Mag-effort naman kayo! 🎁</div></li>' +
-        '<li><b>Make it a mystery.</b> Fill the box with crumpled newspaper so nobody can guess what\'s inside from the shape, size or sound. ' +
-          '<span class="important">This is important for the game.</span></li>' +
-        '<li><b>Label it.</b> Write only <span class="lbl-chip">' + esc(label) + '</span> on the outside. No names, not yours and not theirs.</li>' +
-        '<li><b>Bring it' + (s.partyDate ? ' on ' + esc(s.partyDate) : ' to the party') + '</b> and keep your Mystery Person a secret.</li>' +
-      '</ol>' +
-      '<p class="spiel">The whole game runs on mystery. On party day every gift sits on one table, and people win them by answering trivia, then pick or steal the one they want. Nobody knows what\'s inside or who it\'s for until we open them together and reveal every Mystery Person. The better your gift is disguised, the more fun it gets.</p>' +
-      '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>Got it</button></div>');
-    $('[data-close]', box).focus({ preventScroll: true });
-    box.scrollTop = 0;
+    var steps = [
+      { icon: 'Shop', title: 'Shop for their gift', body: 'Pick something from their list, around ' + peso(s.budget) + '.' },
+      { icon: 'Wrap', title: 'Box it up and wrap it', body: 'Put it in a big box or container and wrap it in Christmas wrapping paper.',
+        extra: '<div class="effort">Please don\'t just put it in a paper bag. Mag-effort naman kayo! 🎁</div>' },
+      { icon: 'Hide', title: 'Make it a mystery', body: 'Fill the box with crumpled newspaper so nobody can guess what\'s inside from the shape, size or sound.',
+        extra: '<div class="important">This is important for the game.</div>' },
+      { icon: 'Tag', title: 'Label it', body: 'Write only this on the outside. No names, not yours and not theirs.',
+        extra: '<div class="lbl-big">' + esc(label) + '</div>' },
+      { icon: 'Go', title: 'Bring it' + (s.partyDate ? ' on ' + esc(s.partyDate) : ' to the party'), body: 'And keep your Mystery Person a secret until the reveal.' }
+    ];
+    var i = 0;
+    var box = openModal('<div class="slides"></div>', true);
+    function draw() {
+      var st = steps[i], last = i === steps.length - 1;
+      $('.slides', box).innerHTML =
+        '<div class="slide pop">' +
+          '<div class="slide-count">Step ' + (i + 1) + ' of ' + steps.length + '</div>' +
+          KNIT.text(st.icon, { cls: 'slide-knit' }) +
+          '<h2>' + st.title + '</h2><p>' + st.body + '</p>' + (st.extra || '') +
+        '</div>' +
+        '<div class="dots slide-dots">' + steps.map(function (_, k) { return '<i class="' + (k <= i ? 'on' : '') + '"></i>'; }).join('') + '</div>' +
+        '<div class="row slide-nav"><button class="btn ghost" id="slPrev"' + (i ? '' : ' disabled') + '>Back</button><span class="spacer"></span>' +
+          '<button class="btn" id="slNext">' + (last ? 'Got it' : 'Next') + '</button></div>';
+      $('#slPrev', box).onclick = function () { if (i) { i--; draw(); } };
+      $('#slNext', box).onclick = function () { if (last) closeModal(); else { i++; draw(); } };
+      $('#slNext', box).focus({ preventScroll: true });
+    }
+    draw();
   }
 
   // Alias in knit letters, broken over a few lines so long names stay big.
@@ -1263,9 +1271,29 @@
     API.call('gameLoad', { password: adminPw() }).then(function (d) {
       var qs = d.trivia || [];
       var i = Math.min(Number(store('triviaIndex')) || 0, Math.max(0, qs.length - 1));
-      var shown = false;
+      var shown = false, started = !!store('triviaSkipIntro');
+      store('triviaSkipIntro', null);
       document.body.classList.add('stage-mode');
+      function intro() {
+        render(
+          '<div class="trivia-stage ts-intro">' +
+            '<div class="ts-top"><a class="ts-exit" href="#/organizer">Exit</a><span class="ts-count"></span><button class="ts-full" id="tsFull">Full screen</button></div>' +
+            KNIT.band({ fg: '#eca7c6', alt: '#f2e8d4', height: 52 }) +
+            '<div class="ts-body">' +
+              '<img src="assets/favor-logo.png" alt="Favor Church" class="ti-logo">' +
+              '<div class="ti-event">' + esc((info && info.eventName) || 'Favor Christmas Party') + '</div>' +
+              KNIT.text('Trivia', { cls: 'ti-knit' }) +
+              '<p class="ti-rules">First to ' + 3 + ' right answers picks a gift from the table, or steals one.</p>' +
+            '</div>' +
+            KNIT.band({ fg: '#eca7c6', alt: '#f2e8d4', height: 52 }) +
+            '<div class="ts-controls" style="margin-top:22px"><button class="ts-btn big" id="tsBegin">Let\'s begin</button></div>' +
+          '</div>'
+        );
+        $('#tsBegin').onclick = begin; $('#tsFull').onclick = full;
+      }
+      function begin() { started = true; draw(); }
       function draw() {
+        if (!started) return intro();
         var q = qs[i];
         render(
           '<div class="trivia-stage">' +
@@ -1303,6 +1331,7 @@
       }
       keyHandler = function (e) {
         if (!modal.hidden) return;
+        if (!started) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); begin(); } else if (e.key === 'f' || e.key === 'F') full(); return; }
         if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
@@ -1358,7 +1387,7 @@
             return '<li><a href="#" data-q="' + i + '"><span class="q">' + esc(q.q) + '</span><span class="a">' + esc(q.a) + '</span></a></li>';
           }).join('') + '</ol></div>'
       );
-      $$('[data-q]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); store('triviaIndex', Number(a.dataset.q)); location.hash = '#/trivia'; }; });
+      $$('[data-q]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); store('triviaIndex', Number(a.dataset.q)); store('triviaSkipIntro', 1); location.hash = '#/trivia'; }; });
       $('#printQs').onclick = function () { window.print(); };
     }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewQuestions); } else render('<div class="error">' + esc(e.message) + '</div>'); });
   }
