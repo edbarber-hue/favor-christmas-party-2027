@@ -538,3 +538,4 @@ body.walking.stage-mode .trivia-stage { padding-bottom: 84px; }
 .ts-intro .ts-controls { flex: none; }
 body.walking.stage-mode .ts-intro { padding-bottom: 80px; }
 @media (max-width: 640px) { body.walking.stage-mode .ts-intro, body.walking.stage-mode .trivia-stage { padding-bottom: 116px; } }
+.brief .hint-red { color: var(--red); font-weight: 800; }
