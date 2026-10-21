@@ -3,7 +3,7 @@
 (function () {
   var cfg = window.KK_CONFIG || {};
   var url = (cfg.apiUrl || '').trim();
-  var DEMO_KEY = 'kk-demo-v1';
+  var DEMO_KEY = 'kk-demo-v2';
 
   // Small synchronous string hash — fine for demo data that never leaves the browser.
   function demoHash(str) {
@@ -23,7 +23,7 @@
     if (raw) { try { return JSON.parse(raw); } catch (e) {} }
     return {
       players: [], game: null,
-      settings: { phase: 'signup', budget: 500, eventName: 'Favor Christmas Party 2027', deadline: 'Dec 1', partyDate: 'Dec 19', adminPassword: 'demo', salt: 'demo-salt' }
+      settings: { phase: 'signup', budget: 500, eventName: 'Favor Christmas Party 2027', deadline: '2026-10-24T23:59:00+08:00', partyDate: 'Dec 19', adminPassword: 'demo', salt: 'demo-salt' }
     };
   }
   var mem = demoLoad();

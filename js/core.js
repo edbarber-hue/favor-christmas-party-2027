@@ -8,7 +8,7 @@
  * It never touches storage directly: it gets a `db` adapter and a `hash` function.
  *   db.getPlayers()        -> [{id, name, pinHash, wishes:[{item, link}], mystery, alias, shopsFor, joinedAt}]
  *   db.savePlayers(list)
- *   db.getSettings()       -> {phase, budget, eventName, deadline, partyDate, adminPassword, salt}
+ *   db.getSettings()       -> {phase, budget, eventName, deadline (ISO date-time), partyDate, adminPassword, salt}
  *   db.saveSettings(obj)
  *   db.getGame()           -> game object (see newGame) or null
  *   db.saveGame(game)
@@ -105,12 +105,19 @@ var KKCore = (function () {
     };
   }
 
+  function deadlineMs(s) {
+    var t = s.deadline ? Date.parse(s.deadline) : NaN;
+    return isNaN(t) ? 0 : t;
+  }
+  function editsClosed(s) { var t = deadlineMs(s); return !!t && Date.now() > t; }
+
   function publicSettings(s, count) {
     return {
       phase: s.phase || 'signup',
       budget: s.budget || 500,
       eventName: s.eventName || 'Favor Christmas Party 2027',
       deadline: s.deadline || '',
+      editsClosed: editsClosed(s),
       partyDate: s.partyDate || '',
       count: count
     };
@@ -153,11 +160,13 @@ var KKCore = (function () {
           fail('Someone already signed up as "' + existing.name + '". If that\'s you, use the PIN you chose. Otherwise add your last name or initial.');
         }
         if (s.phase === 'revealed') fail('The party is over — wishlists are locked.');
+        if (editsClosed(s)) fail('The deadline has passed, so wishlists are locked. Ask the organizer if you need a change.');
         existing.wishes = wishes;
         db.savePlayers(players);
         return { ok: true, updated: true, name: existing.name };
       }
       if (s.phase !== 'signup') fail('Sign-ups are closed — the names have already been drawn. Ask the organizer to reopen sign-ups.');
+      if (editsClosed(s)) fail('Sign-ups closed when the deadline passed. Ask the organizer if you still want in.');
       players.push({
         id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
         name: name,
@@ -285,7 +294,11 @@ var KKCore = (function () {
       var v = p.values || {};
       if (v.eventName != null) s.eventName = clean(v.eventName, 80);
       if (v.budget != null) s.budget = Math.max(0, parseInt(v.budget, 10) || 0);
-      if (v.deadline != null) s.deadline = clean(v.deadline, 40);
+      if (v.deadline != null) {
+        var d = clean(v.deadline, 40);
+        if (d && isNaN(Date.parse(d))) fail('That deadline isn\'t a valid date and time.');
+        s.deadline = d;
+      }
       if (v.partyDate != null) s.partyDate = clean(v.partyDate, 40);
       db.saveSettings(s);
       return { ok: true };

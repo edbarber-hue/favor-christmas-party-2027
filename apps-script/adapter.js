@@ -61,7 +61,7 @@ var SheetDB = {
     return {
       phase: String(s.phase || 'signup'), budget: Number(s.budget) || 500,
       eventName: String(s.eventName || 'Favor Christmas Party 2027'),
-      deadline: s.deadline instanceof Date ? Utilities.formatDate(s.deadline, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.deadline || ''),
+      deadline: s.deadline instanceof Date ? s.deadline.toISOString() : String(s.deadline || ''),
       partyDate: s.partyDate instanceof Date ? Utilities.formatDate(s.partyDate, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.partyDate || ''),
       adminPassword: String(s.adminPassword || ''), salt: String(s.salt || '')
     };
@@ -72,8 +72,8 @@ var SheetDB = {
     ['phase', 'budget', 'eventName', 'deadline', 'partyDate'].forEach(function (k) {
       var row = -1;
       for (var i = 0; i < vals.length; i++) if (String(vals[i][0]).trim() === k) row = i + 1;
-      if (row < 0) { sh.appendRow([k, s[k]]); vals.push([k, s[k]]); }
-      else sh.getRange(row, 2).setValue(s[k]);
+      if (row < 0) { sh.appendRow([k, k === 'deadline' && s[k] ? "'" + s[k] : s[k]]); vals.push([k, s[k]]); }
+      else sh.getRange(row, 2).setValue(k === 'deadline' && s[k] ? "'" + s[k] : s[k]);
     });
   },
   getGame: function () {
@@ -142,7 +142,7 @@ function setup() {
       ['adminPassword', 'change-me', 'Organizer password for the website. CHANGE THIS.'],
       ['eventName', 'Favor Christmas Party 2027', 'Shown at the top of the site'],
       ['budget', 500, 'Gift budget in pesos'],
-      ['deadline', '', 'Sign-up deadline, e.g. Dec 1'],
+      ['deadline', "'2026-10-24T23:59:00+08:00", 'Wishlist deadline (Manila time). Change it from the website\'s Organizer page.'],
       ['partyDate', '', 'Party date, e.g. Dec 19'],
       ['phase', 'signup', 'Managed by the website: signup / drawn / revealed'],
       ['salt', Utilities.getUuid(), 'Used to scramble PINs. Do not change after people sign up.']

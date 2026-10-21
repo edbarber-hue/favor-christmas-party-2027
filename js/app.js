@@ -19,9 +19,31 @@
   }
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
-  function render(html) { app.innerHTML = html; app.focus({ preventScroll: true }); }
+  function render(html) { app.innerHTML = html; app.focus({ preventScroll: true }); if (typeof tickCountdowns === 'function') tickCountdowns(); }
   function loading() { render('<div class="spinner"></div>'); }
   function peso(n) { return '₱' + Number(n || 0).toLocaleString('en-PH'); }
+  function fmtDeadline(iso) {
+    var t = Date.parse(iso); if (isNaN(t)) return '';
+    try { return new Date(t).toLocaleString('en-US', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    catch (e) { return new Date(t).toLocaleString(); }
+  }
+  // Live countdown: any element with data-deadline gets updated every second.
+  function countdownHTML(iso, compact) {
+    if (!iso || isNaN(Date.parse(iso))) return '';
+    return '<div class="countdown' + (compact ? ' compact' : '') + '" data-deadline="' + esc(iso) + '"></div>';
+  }
+  function tickCountdowns() {
+    $$('[data-deadline]').forEach(function (el) {
+      var left = Date.parse(el.dataset.deadline) - Date.now();
+      var compact = el.classList.contains('compact');
+      if (left <= 0) { el.innerHTML = '<span class="cd-closed">Wishlists are closed</span>'; return; }
+      var d = Math.floor(left / 864e5), h = Math.floor(left / 36e5) % 24, m = Math.floor(left / 6e4) % 60, sec = Math.floor(left / 1e3) % 60;
+      if (compact) { el.textContent = 'Edits close in ' + (d ? d + 'd ' : '') + h + 'h ' + m + 'm ' + sec + 's'; return; }
+      var u = function (n, l) { return '<span class="cd-unit"><b>' + (n < 10 ? '0' : '') + n + '</b><i>' + l + '</i></span>'; };
+      el.innerHTML = '<span class="cd-label">Wishlists close in</span><span class="cd-units">' + u(d, 'days') + u(h, 'hrs') + u(m, 'min') + u(sec, 'sec') + '</span>';
+    });
+  }
+  setInterval(tickCountdowns, 1000);
   function showError(where, err) {
     var box = typeof where === 'string' ? $(where) : where;
     if (box) { box.hidden = false; box.className = 'error'; box.textContent = err.message || String(err); }
@@ -101,8 +123,10 @@
     loadInfo().then(function (d) {
       var facts = '<span>Your budget is ' + Number(d.budget || 0).toLocaleString('en-PH') + ' pesos</span>' +
         '<span>Christmas party is on ' + (d.partyDate ? esc(d.partyDate) : 'a date to be announced') + '</span>';
-      var cta = d.phase === 'signup'
+      var cta = d.phase === 'signup' && !d.editsClosed
         ? '<a class="btn cream block" href="#/join">Add my wishlist</a><a class="textlink" href="#/me">Already joined? Log in</a>'
+        : d.phase === 'signup'
+        ? '<a class="btn cream block" href="#/me">Log in</a>'
         : d.phase === 'drawn'
           ? '<a class="btn cream block" href="#/me">See who I\'m shopping for</a>'
           : '<a class="btn cream block" href="#/reveal">Watch the reveal</a><a class="textlink" href="#/me">My page</a>';
@@ -111,6 +135,7 @@
           '<h1 class="poster-type"><span class="script">Mystery</span><span class="big">Kris Kringle</span></h1>' +
           '<p class="poster-sub">' + esc(d.eventName) + '</p>' +
           '<div class="poster-facts">' + facts + '</div>' +
+          (d.phase === 'signup' ? countdownHTML(d.deadline) : '') +
           '<div class="poster-cta">' + cta + '</div>' +
         '</section>'
       );
@@ -135,6 +160,7 @@
     loading();
     loadInfo().then(function (d) {
       var editing = !!(sess && sess.wishes);
+      if (d.editsClosed && d.phase !== 'revealed') { render('<div class="card center"><h2>Wishlists are closed</h2><p class="muted">The deadline was ' + esc(fmtDeadline(d.deadline)) + '. Ask the organizer if you need a change.</p><a class="btn" href="#/me">My page</a></div>'); return; }
       if (d.phase === 'revealed') { render('<div class="card center"><h2>Wishlists are closed</h2><p class="muted">The party\'s done. Merry Christmas!</p><a class="btn" href="#/reveal">Watch the reveal</a></div>'); return; }
       if (d.phase === 'drawn' && !editing) {
         render('<div class="card"><h2>Sign-ups are closed</h2><p class="muted">Names have been drawn. If you missed it, message the organizer.</p><a class="btn" href="#/me">Log in</a></div>');
@@ -144,7 +170,7 @@
       for (var i = 0; i < n; i++) rows += wishRow(prefill[i], Math.min(i, 2));
       render(
         '<div class="card pop">' +
-          '<h2>' + (editing ? 'Your wishlist' : 'Join the game') + '</h2>' +
+          '<h2>' + (editing ? 'Your wishlist' : 'Join the game') + '</h2>' + countdownHTML(d.deadline, true) +
           '<form id="joinForm" novalidate>' +
             '<label for="jName">Your name</label>' +
             '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '"' + (editing ? ' readonly' : '') + '>' +
@@ -185,7 +211,7 @@
               '<h2>' + (r.updated ? 'Saved' : 'You\'re in, ' + esc(r.name)) + '</h2>' +
               '<p class="muted">' + (info && info.phase === 'drawn'
                 ? 'Your Secret Santa will see the new list.'
-                : 'After names are drawn' + (info && info.deadline ? ' on ' + esc(info.deadline) : '') + ', log in to see who you\'re shopping for.') + '</p>' +
+                : 'After names are drawn' + (info && info.deadline ? ' (' + esc(fmtDeadline(info.deadline)) + ')' : '') + ', log in to see who you\'re shopping for.') + '</p>' +
               '<a class="btn" href="#/me">Go to my page</a>' +
             '</div>'
           );
@@ -238,7 +264,7 @@
 
     if (s.phase === 'signup') {
       html += '<div class="card pop"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
-        '<p class="muted">You\'re in. Names are drawn ' + (s.deadline ? 'after ' + esc(s.deadline) : 'soon') + '. Check back here to see who you\'re shopping for.</p></div>';
+        '<p class="muted">You\'re in. Names are drawn ' + (s.deadline ? 'after ' + esc(fmtDeadline(s.deadline)) : 'soon') + '. Check back here to see who you\'re shopping for.</p>' + countdownHTML(s.deadline, true) + '</div>';
     } else if (d.shoppingFor) {
       html += '<div class="ticket pop">' + STAR6 + '<div class="label">You\'re shopping for</div>' +
         '<div class="big">#' + d.shoppingFor.no + '</div>' +
@@ -253,7 +279,7 @@
         '<a class="btn" href="#/reveal">Watch the reveal</a></div>';
     }
     html += '<div class="card"><div class="row"><h3 style="margin:0">My wishlist</h3><span class="spacer"></span>' +
-      (s.phase !== 'revealed' && !test ? '<a class="btn secondary small" href="#/join">Edit</a>' : '') + '</div>' +
+      (s.phase !== 'revealed' && !test && !s.editsClosed ? '<a class="btn secondary small" href="#/join">Edit</a>' : '') + '</div>' +
       '<div style="margin-top:6px">' + wishListHTML(d.wishes) + '</div></div>' +
       (test ? '' : '<p class="center"><button class="btn ghost small" id="logout" style="color:var(--cream)">Log out</button></p>');
     render(html);
@@ -284,6 +310,11 @@
     });
   }
 
+  // ISO -> "YYYY-MM-DDTHH:MM" in Manila time, for the datetime-local input
+  function toLocalInput(iso) {
+    var t = Date.parse(iso); if (isNaN(t)) return '';
+    return new Date(t + 8 * 36e5).toISOString().slice(0, 16);
+  }
   var showSecrets = false;
   function viewOrganizer() {
     if (!adminPw()) return adminLogin(viewOrganizer);
@@ -323,7 +354,7 @@
       '<div class="stats">' +
         '<div class="stat"><div class="n">' + ps.length + '</div><div class="l">joined</div></div>' +
         '<div class="stat"><div class="n">' + peso(s.budget) + '</div><div class="l">budget</div></div>' +
-        '<div class="stat"><div class="n">' + (s.deadline ? esc(s.deadline) : 'Not set') + '</div><div class="l">wishlists due</div></div>' +
+        '<div class="stat"><div class="n" style="font-size:1.3rem">' + (s.deadline ? esc(fmtDeadline(s.deadline)) : 'Not set') + '</div><div class="l">wishlists due' + (s.editsClosed ? ' (closed)' : '') + '</div></div>' +
         '<div class="stat"><div class="n">' + (s.partyDate ? esc(s.partyDate) : 'Not set') + '</div><div class="l">party</div></div>' +
       '</div>' +
       '<div class="card"><h2>Next</h2>' + actions + '<div id="actErr" hidden></div></div>' +
@@ -334,13 +365,13 @@
       '</div>' +
       '<div class="card"><h3>Invite message</h3>' +
         '<textarea id="invite" rows="4">' + esc(s.eventName) + ': Mystery Kris Kringle 🎁\n' +
-        'Add 3–5 gift ideas' + (s.deadline ? ' by ' + esc(s.deadline) : '') + '. ' + peso(s.budget) + ' budget, all anonymous.\n' + esc(siteUrl) + '</textarea>' +
+        'Add 3–5 gift ideas' + (s.deadline ? ' by ' + esc(fmtDeadline(s.deadline)) : '') + '. ' + peso(s.budget) + ' budget, all anonymous.\n' + esc(siteUrl) + '</textarea>' +
         '<button class="btn secondary small" id="copyInvite" style="margin-top:8px">Copy</button></div>' +
       '<details class="card"><summary>Event settings</summary>' +
         '<form id="setForm"><div class="grid2">' +
           '<div><label>Event name</label><input name="eventName" value="' + esc(s.eventName) + '"></div>' +
           '<div><label>Budget (₱)</label><input name="budget" type="number" min="0" value="' + esc(s.budget) + '"></div>' +
-          '<div><label>Sign-up deadline</label><input name="deadline" placeholder="e.g. Dec 1" value="' + esc(s.deadline) + '"></div>' +
+          '<div><label>Wishlist deadline <span class="hint">Manila time</span></label><input name="deadline" type="datetime-local" value="' + esc(toLocalInput(s.deadline)) + '"></div>' +
           '<div><label>Party date</label><input name="partyDate" placeholder="e.g. Dec 19" value="' + esc(s.partyDate) + '"></div>' +
         '</div><button class="btn small" style="margin-top:14px">Save settings</button><div id="setErr" hidden></div></form>' +
         (API.demo ? '<hr style="border:none;border-top:1px dashed #d4c4a4;margin:18px 0"><button class="btn ghost small" id="demoReset">Erase all demo data</button>' : '') +
@@ -379,7 +410,7 @@
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button');
       busy(btn, true);
-      API.call('saveSettings', { password: adminPw(), values: { eventName: f.eventName.value, budget: f.budget.value, deadline: f.deadline.value, partyDate: f.partyDate.value } })
+      API.call('saveSettings', { password: adminPw(), values: { eventName: f.eventName.value, budget: f.budget.value, deadline: f.deadline.value ? f.deadline.value + ':00+08:00' : '', partyDate: f.partyDate.value } })
         .then(viewOrganizer).catch(function (err) { busy(btn, false); showError('#setErr', err); });
     });
   }
