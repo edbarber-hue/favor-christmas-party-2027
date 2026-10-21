@@ -455,7 +455,7 @@
         '<button class="btn" id="draw"' + (ps.length < 3 ? ' disabled' : '') + '>Draw names</button>';
     } else if (s.phase === 'drawn') {
       actions = '<p class="muted">Party day: put the party board on the TV. Once every gift is open, start the reveal.</p>' +
-        '<div class="row"><a class="btn" href="#/board">Open party board</a><button class="btn secondary" id="revealOn">Start the reveal</button></div>' +
+        '<div class="row"><a class="btn" href="#/scores">Score keeper</a><a class="btn secondary" href="' + TV_URL() + '" target="_blank" rel="noopener">TV screen</a><a class="btn secondary" href="#/summary">All aliases</a><button class="btn secondary" id="revealOn">Start the reveal</button></div>' +
         '<p style="margin:14px 0 0"><button class="btn ghost small" id="reopen">Undo the draw and reopen sign-ups</button></p>';
     } else {
       actions = '<p class="muted">The reveal is live for everyone.</p>' +
@@ -544,11 +544,17 @@
   // =====================================================================
   // PARTY BOARD
   // =====================================================================
+  // TV screen: everyone can see it, no scores.
   function viewBoard() {
     app.classList.add('wide');
-    if (adminPw()) return boardController();
     boardViewer();
   }
+  // Score keeper: private, for the organizer's phone.
+  function viewScores() {
+    if (!adminPw()) return adminLogin(viewScores);
+    boardController();
+  }
+  var TV_URL = function () { return location.pathname + '?tv#/board'; };
 
   function bagHTML(b, g, opts) {
     opts = opts || {};
@@ -560,8 +566,8 @@
       (opts.badge ? '<span class="badge">' + opts.badge + '</span>' : '') +
       '<div class="ico">' + (b.holder ? '🎁' : '🛍️') + '</div>' +
       '<div class="no">#' + b.no + '</div>' +
-      (b.alias ? '<div class="alias-sm">' + esc(b.alias) + '</div>' : '') +
-      '<div class="who' + (b.holder ? '' : ' free') + '">' + (b.holder ? esc(b.holder) : 'On the table') + '</div>' +
+      (b.alias ? '<div class="alias-sm">' + esc(b.alias.replace(/^The /, '')) + '</div>' : '') +
+      (b.holder ? '<div class="who">with ' + esc(b.holder) + '</div>' : '') +
       (g.maxSteals ? '<div class="steals" title="Times stolen">' + dots + '</div>' : '') +
       '</div>';
   }
@@ -572,8 +578,7 @@
     function load() {
       API.call('board').then(function (d) {
         if (!d.game) {
-          render('<div class="card center"><h2>The party board isn\'t ready yet</h2><p class="muted">It appears here once the organizer draws names.</p>' +
-            '<a class="btn ghost small" href="#/organizer">Organizer? Unlock the controls</a></div>');
+          render('<div class="card center"><h2>The party board isn\'t ready yet</h2><p class="muted">It appears here once names are drawn.</p></div>');
           return;
         }
         var g = d.game;
@@ -583,16 +588,12 @@
         var ranked = Object.keys(g.scores).filter(function (n) { return g.scores[n] > 0; })
           .sort(function (a, b) { return g.scores[b] - g.scores[a]; });
         render(
-          '<div class="board-head"><h1>Party board</h1><span class="phase-pill">' + free + ' on the table</span><span class="spacer"></span>' +
-            '<a class="btn ghost small" href="#/organizer">Organizer</a></div>' +
+          '<div class="board-head"><h1>Party board</h1><span class="phase-pill">' + free + ' bag' + (free === 1 ? '' : 's') + ' left</span></div>' +
           '<div class="board"><div><div class="bags">' + g.bags.map(function (b) { return bagHTML(b, g); }).join('') + '</div></div>' +
           '<div>' +
             (g.question ? '<div class="trivia-card"><div class="qn">Question ' + g.question.n + ' of ' + g.question.total + '</div>' +
               '<div class="q">' + esc(g.question.q) + '</div>' + (g.question.a ? '<div class="a">' + esc(g.question.a) + '</div>' : '') + '</div>' : '') +
-            '<div class="card"><h3>Scores · first to ' + g.target + '</h3>' +
-              (ranked.length ? '<div class="scores">' + ranked.map(function (n) {
-                return '<div class="score"><span class="nm">' + esc(n) + '</span><span class="pips">' + pips(g.scores[n], g.target) + '</span><span></span></div>';
-              }).join('') + '</div>' : '<p class="muted">No points yet this round.</p>') + '</div>' +
+
             (g.log.length ? '<div class="card"><h3>What\'s happened</h3><ul class="log">' + g.log.slice().reverse().map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>' : '') +
           '</div></div>'
         );
@@ -737,16 +738,15 @@
         var lastBag = free.length === 1 && waiting.length === 1;
 
         render(
-          '<div class="board-head"><h1>Party board</h1><span class="phase-pill">' + free.length + ' on the table</span>' +
+          '<div class="board-head"><h1>Score keeper</h1><span class="phase-pill">Private</span>' +
             '<span class="small muted" id="saveBadge"></span><span class="spacer"></span>' +
             '<button class="btn ghost small" id="undo"' + (history.length ? '' : ' disabled') + '>↶ Undo</button>' +
             '<button class="btn ghost small" id="rules">⚙ Rules</button>' +
-            '<a class="btn ghost small" href="#/test">Test mode</a><a class="btn secondary small" href="#/reveal">Reveal</a></div>' +
+            '<a class="btn secondary small" href="' + TV_URL() + '" target="_blank" rel="noopener">Open TV screen</a></div>' +
+          '<p class="small" style="opacity:.8;margin:-6px 0 16px">Only you see this. The TV screen shows the bags and question, and updates by itself.</p>' +
           (lastBag ? '<div class="notice row"><span>Only one bag left and one person without a bag.</span><span class="spacer"></span><button class="btn small" id="lastBag">Give bag #' + free[0].no + ' to ' + esc(waiting[0]) + '</button></div>' : '') +
           (!free.length ? '<div class="notice">🎉 Every bag has a home! Time to open them all together — then start the reveal.</div>' : '') +
-          '<div class="board">' +
-            '<div><div class="bags">' + G.bags.map(function (b) { return bagHTML(b, G, { cls: 'clickable' }); }).join('') + '</div>' +
-              '<p class="small muted" style="margin-top:10px">Tap a bag to see its wishlist or fix who holds it.</p></div>' +
+          '<div class="keeper">' +
             '<div>' +
               '<div class="trivia-card">' +
                 (q ? '<div class="qn">Question ' + (G.qIndex + 1) + ' of ' + trivia.length + '</div><div class="q">' + esc(q.q) + '</div>' +
@@ -770,6 +770,8 @@
               '</div>' +
               ((G.log || []).length ? '<div class="card"><h3>What\'s happened</h3><ul class="log">' + G.log.slice(-8).reverse().map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>' : '') +
             '</div>' +
+            '<div><h3 style="margin:0 0 10px">Bags</h3><div class="bags">' + G.bags.map(function (b) { return bagHTML(b, G, { cls: 'clickable' }); }).join('') + '</div>' +
+              '<p class="small" style="opacity:.8;margin-top:10px">Tap a bag to see its wishlist or fix who holds it.</p></div>' +
           '</div>'
         );
         updateSaveBadge();
@@ -784,7 +786,7 @@
         $$('[data-minus]').forEach(function (b) {
           b.onclick = function () { var n = b.dataset.minus; if (G.scores[n]) change(function () { G.scores[n]--; }); };
         });
-        $$('.board .bag').forEach(function (el) { el.onclick = function () { openBag(Number(el.dataset.bag)); }; });
+        $$('.keeper .bag').forEach(function (el) { el.onclick = function () { openBag(Number(el.dataset.bag)); }; });
         $('#qNext').onclick = function () { change(function () { G.qIndex++; G.showAnswer = false; }); };
         $('#qPrev').onclick = function () { change(function () { G.qIndex = Math.max(0, G.qIndex - 1); G.showAnswer = false; }); };
         if ($('#qAns')) $('#qAns').onclick = function () { change(function () { G.showAnswer = !G.showAnswer; }); };
@@ -900,7 +902,8 @@
         '<li>Everyone opens together, the reveal shows who each Mystery Person was, then people trade to get their own wishlist.</li>' +
       '</ol></div>' +
       '<div class="card"><h3>Party day rules</h3><ul>' +
-        '<li>Read a question from the party board. Tap + for whoever answers first.</li>' +
+        '<li>Put the TV screen up for everyone: it shows the bags and the current question.</li>' +
+        '<li>Run the game from the Score keeper on your phone. Tap + for whoever answers first. Scores stay private.</li>' +
         '<li>First to 3 correct picks a bag from the table, or steals someone else\'s.</li>' +
         '<li>A bag locks after it\'s been stolen twice.</li>' +
         '<li>Holding a bag means you sit out of trivia. If yours is stolen, you\'re back in.</li>' +
@@ -911,8 +914,8 @@
         '<li>Send the invite from the Organizer page.</li>' +
         '<li>Names draw themselves at the deadline. Want it earlier? Press Draw names.</li>' +
         '<li>Remind everyone to log in and see who they\'re shopping for.</li>' +
-        '<li>Party day: open the party board on the TV and log in.</li>' +
-        '<li>When every bag has a home and is opened, press Start the reveal and put the reveal on the TV. Space bar flips each card.</li>' +
+        '<li>Party day: open the TV screen on the TV, and the Score keeper on your phone.</li>' +
+        '<li>When every bag is opened, put All aliases on the TV and press Reveal everyone. Or reveal one at a time with the space bar.</li>' +
       '</ol></div>' +
       '<div class="card"><h3>Good to know</h3><ul>' +
         '<li>Forgotten PIN: Organizer page, Reset PIN, then tell them privately.</li>' +
@@ -923,6 +926,69 @@
         '<li>Use Open as below to check what any person sees.</li>' +
       '</ul></div>' +
     '</div>';
+  }
+
+  // ---- Test mode: one button per phase of the game ----
+  function phasesCard(s, drawn) {
+    var tile = function (n, id, title, text) {
+      return '<button class="phase-btn" id="' + id + '"><span class="pn">' + n + '</span><b>' + title + '</b><span>' + text + '</span></button>';
+    };
+    return '<div class="card phases"><h2>Test each phase</h2>' +
+      '<p class="muted">Each button sets things up for that phase, then opens it. Sample people are added when there aren\'t enough.</p>' +
+      '<div class="phase-grid">' +
+        tile(1, 'ph1', 'Check-in', 'Sign up with a name, PIN and wishlist, then log in') +
+        tile(2, 'ph2', 'Who\'s my person', 'Names get drawn. See "Want to see who you got?" and the alias you got') +
+        tile(3, 'ph3', 'Game &amp; trivia', 'Your private score keeper, plus the TV screen everyone sees') +
+        tile(4, 'ph4', 'The reveal', 'Every alias on one screen, then reveal who everyone was') +
+      '</div><div id="phaseErr" hidden></div></div>';
+  }
+
+  // Puts the demo back into sign-up mode (dates moved if needed, draw undone).
+  function ensureSignup(s) {
+    var step = Promise.resolve();
+    var save = function (vals) { return function () { return API.call('saveSettings', { password: adminPw(), values: vals }); }; };
+    if (s.notOpen) {
+      if (!store('realOpens') && s.opensAt) store('realOpens', s.opensAt);
+      step = step.then(save({ opensAt: new Date(Date.now() - 1000).toISOString() }));
+    }
+    if (s.editsClosed || s.phase !== 'signup') {
+      var real = store('realDeadline');
+      var dl = real && Date.parse(real) > Date.now() ? real
+        : Date.parse(s.deadline) > Date.now() ? s.deadline
+        : new Date(Date.now() + 3 * 864e5).toISOString();
+      if (dl !== s.deadline) { if (!real && s.deadline) store('realDeadline', s.deadline); step = step.then(save({ deadline: dl })); }
+    }
+    if (s.phase !== 'signup') step = step.then(function () { return API.call('reopen', { password: adminPw() }); });
+    return step;
+  }
+
+  function bindPhases(s, ps) {
+    var run = function (id, fn) {
+      var b = $('#' + id); if (!b) return;
+      b.onclick = function () {
+        b.disabled = true;
+        Promise.resolve(fn()).catch(function (e) { b.disabled = false; showError('#phaseErr', e); });
+      };
+    };
+    var myself = function (players) {
+      var me = store('me'), t = null;
+      players.forEach(function (p) { if (me && me.name && p.name.toLowerCase() === me.name.toLowerCase()) t = p; });
+      return t || players[0];
+    };
+    run('ph1', function () {
+      var go = function () { store('me', null); location.hash = '#/join'; };
+      if (s.phase !== 'signup' || s.notOpen || s.editsClosed) {
+        return ask('Go back to sign-ups? This undoes the current draw so you can test joining.', 'Back to sign-ups')
+          .then(function (ok) { if (ok) return ensureSignup(s).then(go); document.getElementById('ph1').disabled = false; });
+      }
+      go();
+    });
+    run('ph2', function () {
+      return ensureDrawn(s, ps).then(function () { return API.call('adminList', { password: adminPw() }); })
+        .then(function (d) { location.hash = '#/test/as/' + encodeURIComponent(myself(d.players).id); });
+    });
+    run('ph3', function () { return ensureDrawn(s, ps).then(function () { location.hash = '#/scores'; }); });
+    run('ph4', function () { return ensureDrawn(s, ps).then(function () { location.hash = '#/summary'; }); });
   }
 
   // ---- Test mode: one-tap sample run ----
@@ -1088,9 +1154,8 @@
           (drawn ? '<button class="btn ghost small" id="preview">Preview the reveal</button>' : '') +
           (drawn && s.phase === 'drawn' ? '<button class="btn ghost small" id="redraw">Draw again</button>' : '') +
           (!drawn && ps.length >= 3 ? '<button class="btn ghost small" id="testDraw">Draw names now</button>' : '') +
-          '<a class="btn ghost small" href="#/board">Party board</a></div>' +
-        sampleCard(ps) +
-        partyCard(drawn, s) +
+          '<a class="btn ghost small" href="#/scores">Score keeper</a></div>' +
+        phasesCard(s, drawn) +
         speedCard(s, drawn) +
         GUIDE(s) +
         '<div class="page-head" style="margin-top:28px"><h2 style="margin:0">Everyone</h2></div>' +
@@ -1108,8 +1173,7 @@
       if ($('#redraw')) $('#redraw').onclick = function () { doDraw('Draw again? Everyone gets a new person, number and animal name. Only do this while testing, before anyone has shopped.'); };
       if ($('#testDraw')) $('#testDraw').onclick = function () { doDraw('Draw names now? Sign-ups close and everyone gets their person.'); };
       bindSpeed(s);
-      bindSample(s, ps);
-      bindParty(s, ps);
+      bindPhases(s, ps);
       if ($('#preview')) $('#preview').onclick = function () {
         var list = ps.filter(function (p) { return p.mystery; }).map(function (p) {
           var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
@@ -1121,16 +1185,58 @@
   }
 
   // =====================================================================
+  // SUMMARY: every alias on one screen, then reveal everyone at once
+  // =====================================================================
+  function viewSummary() {
+    if (!adminPw()) return adminLogin(viewSummary);
+    loading();
+    API.call('adminList', { password: adminPw() }).then(function (d) {
+      var ps = d.players, byNo = {};
+      ps.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p; });
+      var list = ps.filter(function (p) { return p.mystery; }).sort(function (a, b) { return a.mystery - b.mystery; });
+      if (!list.length) { render('<div class="card center"><h2>No aliases yet</h2><p class="muted">Aliases are handed out when names are drawn.</p><a class="btn" href="#/test">Go to test mode</a></div>'); return; }
+      var tiles = list.map(function (p, i) {
+        var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
+        return '<div class="sum-tile" style="--i:' + i + '">' +
+          '<div class="sum-front"><div class="sum-no">#' + p.mystery + '</div><div class="sum-alias">' + esc(p.alias) + '</div></div>' +
+          '<div class="sum-back"><div class="sum-alias-sm">#' + p.mystery + ' ' + esc(p.alias) + '</div><div class="sum-name">' + esc(p.name) + '</div>' +
+            (giver ? '<div class="sum-from">Gift from ' + esc(giver.name) + '</div>' : '') + '</div>' +
+        '</div>';
+      }).join('');
+      render(
+        '<div class="page-head"><h1>The Mystery People</h1><span class="spacer"></span>' +
+          '<a class="btn ghost small" href="#/test">Test mode</a>' +
+          '<button class="btn cream" id="revealAll">Reveal everyone</button></div>' +
+        '<div class="sum-grid" id="sumGrid">' + tiles + '</div>' +
+        '<p class="small center" style="opacity:.8;margin-top:22px">Want suspense? <a href="#" id="oneByOne">Reveal one at a time instead</a></p>'
+      );
+      $('#revealAll').onclick = function () {
+        var g = $('#sumGrid'), on = !g.classList.contains('revealed');
+        g.classList.toggle('revealed', on);
+        this.textContent = on ? 'Hide names' : 'Reveal everyone';
+        if (on) { confetti(220); setTimeout(function () { confetti(160); }, 900); }
+      };
+      $('#oneByOne').onclick = function (e) {
+        e.preventDefault();
+        stage({ list: list.map(function (p) {
+          var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
+          return { no: p.mystery, alias: p.alias, name: p.name, giver: giver ? giver.name : '', wishes: p.wishes, holder: '' };
+        }), preview: true });
+      };
+    }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewSummary); } else render('<div class="error">' + esc(e.message) + '</div>'); });
+  }
+
+  // =====================================================================
   // ROUTER
   // =====================================================================
-  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal, test: viewTest };
+  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal, test: viewTest, summary: viewSummary, scores: viewScores };
   function route() {
     timers.forEach(clearInterval); timers = [];
     keyHandler = null; closeModal();
     var name = (location.hash.replace(/^#\/?/, '').split('/')[0] || '');
     var fn = routes[name] || viewHome;
     app.classList.remove('wide');
-    if (name === 'organizer') app.classList.add('wide');
+    if (name === 'organizer' || name === 'summary') app.classList.add('wide');
     $$('.nav a').forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#/' + name); });
     window.scrollTo(0, 0);
     fn();
@@ -1143,7 +1249,7 @@
     bar.innerHTML = 'Demo mode. Organizer password: <b>demo</b>';
   }
   // Every fresh visit starts on the front page, whatever link or old tab it came from.
-  if (location.hash && location.hash !== '#/' && location.hash !== '#') {
+  if (location.hash && location.hash !== '#/' && location.hash !== '#' && !/[?&]tv\b/.test(location.search)) {
     try { history.replaceState(null, '', location.pathname + location.search + '#/'); } catch (e) { location.hash = '#/'; }
   }
   var fb = document.getElementById('footBand');

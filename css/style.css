@@ -369,3 +369,40 @@ details summary { cursor: pointer; font-weight: 700; }
 .ticket .knit-name .knit-text { height: clamp(34px, 9vw, 54px); }
 .brief { background: #eadfc6; border-radius: 4px; padding: 12px 14px; margin: 0 0 12px; font-size: .92rem; line-height: 1.5; color: var(--ink); }
 .brief span { display: block; margin-top: 4px; color: var(--ink-soft); }
+
+/* ---------- Clearer bag tiles ---------- */
+.bag .no { font-size: 2.4rem; }
+.bag .alias-sm { font-family: var(--sans); font-weight: 800; font-stretch: 108%; font-size: 1.02rem; line-height: 1.2; color: var(--ink); padding: 0 6px; }
+.bag.held .alias-sm { color: var(--cream); opacity: 1; }
+.bag .who { font-size: .82rem; font-weight: 600; color: var(--red); }
+.bag.held .who { color: var(--pink); }
+
+/* ---------- Test phases ---------- */
+.phase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 6px; }
+.phase-btn { position: relative; text-align: left; font: inherit; cursor: pointer; padding: 18px 18px 18px 64px; border-radius: var(--radius); border: 0; min-height: 112px;
+  color: var(--cream); background-color: var(--pine); background-image: var(--knit), var(--noise); box-shadow: 0 14px 24px -18px rgba(20,5,3,.8); transition: transform .12s; }
+.phase-btn:hover { transform: translateY(-2px); }
+.phase-btn:disabled { opacity: .6; cursor: wait; }
+.phase-btn .pn { position: absolute; left: 16px; top: 16px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--pink); color: var(--pine-deep); font-weight: 900; font-size: 1.05rem; }
+.phase-btn b { display: block; font-weight: 900; font-stretch: 118%; text-transform: uppercase; font-size: 1.15rem; color: var(--pink); margin-bottom: 6px; }
+.phase-btn > span:last-child { font-size: .9rem; opacity: .9; line-height: 1.4; }
+
+/* ---------- Summary: all aliases, then reveal ---------- */
+.sum-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; perspective: 1400px; }
+.sum-tile { position: relative; height: 170px; transform-style: preserve-3d; transition: transform .8s cubic-bezier(.2,.8,.2,1); transition-delay: calc(var(--i) * 90ms); }
+.sum-grid.revealed .sum-tile { transform: rotateY(180deg); }
+.sum-front, .sum-back { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: var(--radius); padding: 16px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-shadow: 0 16px 26px -18px rgba(30,5,3,.7); }
+.sum-front { color: var(--cream); background-color: var(--pine); background-image: var(--knit), var(--noise); }
+.sum-no { font-weight: 900; font-stretch: 125%; font-size: 2.2rem; line-height: 1; color: var(--pink); }
+.sum-alias { font-weight: 800; font-stretch: 108%; font-size: 1.2rem; line-height: 1.2; margin-top: 8px; }
+.sum-back { transform: rotateY(180deg); color: var(--ink); background: var(--cream); background-image: var(--noise-light); }
+.sum-alias-sm { font-size: .85rem; color: var(--ink-soft); }
+.sum-name { font-weight: 900; font-stretch: 120%; text-transform: uppercase; font-size: 1.6rem; line-height: 1.05; color: var(--red); margin: 6px 0; }
+.sum-from { font-size: .85rem; color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { .sum-tile { transition: none; } }
+
+.keeper { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 860px) { .keeper { grid-template-columns: 1fr; } }
+.keeper > div > h3 { color: var(--cream); }
+.board .trivia-card .q { font-size: clamp(1.5rem, 2.8vw, 2.4rem); }
