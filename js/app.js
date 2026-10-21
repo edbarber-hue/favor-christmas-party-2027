@@ -340,7 +340,7 @@
     if (isNaN(t)) return;
     var start = new Date(t + 5 * 6e4), end = new Date(t + 20 * 6e4);
     var z = function (d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); };
-    var url = location.href.split('#')[0] + '#/me';
+    var url = location.href.split('#')[0];
     var title = 'See who you got! ' + (s.eventName || 'Mystery Kris Kringle');
     var details = 'Names have been drawn. Log in with your full name and PIN: ' + url;
     var g = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) +
@@ -1056,6 +1056,10 @@
     var bar = $('#demoBar');
     bar.hidden = false;
     bar.innerHTML = 'Demo mode. Organizer password: <b>demo</b>';
+  }
+  // Every fresh visit starts on the front page, whatever link or old tab it came from.
+  if (location.hash && location.hash !== '#/' && location.hash !== '#') {
+    try { history.replaceState(null, '', location.pathname + location.search + '#/'); } catch (e) { location.hash = '#/'; }
   }
   var fb = document.getElementById('footBand');
   if (fb) fb.innerHTML = KNIT.band({ fg: '#f2e8d4', alt: '#eca7c6', height: 44 });
