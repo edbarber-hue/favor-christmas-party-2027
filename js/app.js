@@ -185,7 +185,7 @@
   function wishRow(w, i) {
     w = w || {};
     return '<div class="wish-row">' +
-      '<div class="line"><input name="item" maxlength="140" aria-label="Gift idea ' + (i + 1) + '" placeholder="' + ['A gift you\'d love', 'Another one', 'One more'][i] + '" value="' + esc(w.item) + '">' +
+      '<div class="line"><input name="item" maxlength="140" aria-label="Gift idea ' + (i + 1) + '" placeholder="' + ['e.g. Aquaflask 32oz, matte black', 'e.g. Oversized hoodie, size M, beige', 'e.g. Bath & Body Works mist, Into the Night'][i] + '" value="' + esc(w.item) + '">' +
       '<button type="button" class="link-toggle" aria-label="Add a link">' + (w.link ? 'Link ✓' : '+ Link') + '</button></div>' +
       '<input name="link" class="link-input" type="url" inputmode="url" placeholder="Paste a Shopee or Lazada link" value="' + esc(w.link) + '"' + (w.link ? '' : ' hidden') + '>' +
       '</div>';
@@ -216,6 +216,8 @@
             '<label for="jPin">Pick a 4-digit PIN <span class="hint">to log in later</span></label>' +
             '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
             '<label>Gift ideas <span class="hint">3 to 5, around ' + peso(d.budget) + ' each</span></label>' +
+            '<div class="brief"><b>Be ultra specific.</b> Include color, size, brand, scent or flavor. ' +
+            '<span>Hint: the person buying for you won\'t know your name or who you are, so your list is all they have to go on.</span></div>' +
             '<div id="wishes">' + rows + '</div>' +
             '<button type="button" class="add-wish" id="addWish"' + (n >= 5 ? ' hidden' : '') + '>+ Add another</button>' +
             '<div id="jErr" hidden></div>' +
@@ -308,7 +310,8 @@
     if (!test) { var sess = store('me') || {}; store('me', { name: d.name, pin: sess.pin, wishes: d.wishes }); }
     var s = d.settings, html = '';
     if (test) html += '<div class="test-bar">Test mode: this is exactly what <b>' + esc(d.name) + '</b> sees' +
-      (d.myMystery ? '. They\'re secretly #' + d.myMystery + ', ' + esc(d.myAlias) : '') + '. <a href="#/test">Back to everyone</a></div>';
+      (d.myMystery ? '. They\'re secretly #' + d.myMystery + ', ' + esc(d.myAlias) : '') +
+      (d.secretName ? '. Their mystery person is really ' + esc(d.secretName) + ' (only you can see this)' : '') + '. <a href="#/test">Back to everyone</a></div>';
 
     if (s.phase === 'signup') {
       html += '<div class="card center pop come-back"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
@@ -329,11 +332,11 @@
     } else if (d.shoppingFor) {
       html += '<div class="ticket pop">' + KNIT.band({ fg: '#eca7c6', height: 34 }) +
         '<div class="label">You got</div>' +
-        '<div class="knit-name">' + KNIT.text(d.shoppingFor.name || ('#' + d.shoppingFor.no)) + '</div>' +
-        (d.shoppingFor.alias ? '<div class="alias">a.k.a. ' + esc(d.shoppingFor.alias) + '</div>' : '') +
-        '<div class="sub">Mystery #' + d.shoppingFor.no + '. ' + peso(s.budget) + ' budget' + (s.partyDate ? ', bring it on ' + esc(s.partyDate) : '') + '</div></div>' +
-        '<div class="card"><h3>Their wishlist</h3>' + wishListHTML(d.shoppingFor.wishes) +
-        '<p class="small muted" style="margin:16px 0 0">Label the bag only "#' + d.shoppingFor.no + (d.shoppingFor.alias ? ' ' + esc(d.shoppingFor.alias) : '') + '". Never write ' + esc((d.shoppingFor.name || '').split(' ')[0] || 'their') + '\'s name, and keep it secret.</p></div>';
+        '<div class="knit-name">' + knitLines(d.shoppingFor.alias || ('Mystery #' + d.shoppingFor.no)) + '</div>' +
+        '<div class="sub">Mystery #' + d.shoppingFor.no + '. Who they really are stays a mystery until party day.</div></div>' +
+        '<div class="card"><h3>Here\'s what they asked for</h3>' + wishListHTML(d.shoppingFor.wishes) +
+        '<p class="small muted" style="margin:16px 0 0">' + peso(s.budget) + ' budget' + (s.partyDate ? '. Bring it on ' + esc(s.partyDate) : '') +
+        '. Label the bag "#' + d.shoppingFor.no + (d.shoppingFor.alias ? ' ' + esc(d.shoppingFor.alias) : '') + '". Wait to see who you\'re buying for at the reveal.</p></div>';
     }
     if (s.phase === 'revealed') {
       html += '<div class="card center"><h2>The reveal is on</h2>' +
@@ -348,6 +351,16 @@
     if (!test && d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
     if ($('#logout')) $('#logout').onclick = function () { store('me', null); meLogin(); };
     if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(s); };
+  }
+
+  // Alias in knit letters, broken over a few lines so long names stay big.
+  function knitLines(text) {
+    var words = String(text).split(/\s+/), lines = [], cur = '';
+    words.forEach(function (w) {
+      if (cur && (cur + ' ' + w).length > 11) { lines.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w;
+    });
+    if (cur) lines.push(cur);
+    return lines.map(function (l) { return KNIT.text(l); }).join('');
   }
 
   function comeBackLine(deadline) {
@@ -881,7 +894,7 @@
       '<div class="card"><h3>The game</h3><ol>' +
         '<li>Everyone adds 3–5 gift ideas around ' + b + ', using their full name and a 4-digit PIN.</li>' +
         '<li>When the countdown ends' + (s.deadline ? ' (' + esc(fmtDeadline(s.deadline)) + ')' : '') + ', wishlists lock and names are drawn automatically. Each person gets a number and a funny animal name, plus someone to shop for.</li>' +
-        '<li>People log in, tap "Show me", and see who they got: the real name, animal name and wishlist. Nobody sees their own number.</li>' +
+        '<li>People log in, tap "Show me", and see the alias they got (like The Lodi Llama) and that person\'s wishlist. Real names stay hidden from everyone until the reveal.</li>' +
         '<li>Each gift goes in a bag labeled with the number and animal name only, never a real name.</li>' +
         '<li>At the party, every bag goes on one table and people win bags with trivia.</li>' +
         '<li>Everyone opens together, the reveal shows who each Mystery Person was, then people trade to get their own wishlist.</li>' +

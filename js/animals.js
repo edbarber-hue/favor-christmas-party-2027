@@ -1,6 +1,6 @@
 /* Funny mystery animal names. One is given to each Mystery Person at the draw. */
 var KK_ANIMALS = [
-  'The Chismosang Tarsier', 'The Kuripot Kalabaw', 'The Sleepy Sloth (5 More Minutes)', 'The Petmalu Penguin',
+  'The Chismosang Tarsier', 'The Kuripot Kalabaw', 'The 5-More-Minutes Sloth', 'The Petmalu Penguin',
   'The Late-to-Simbang-Gabi Goat', 'The Noche Buena Ninja Pig', 'The Hangry Hippo', 'The Tita Flamingo',
   'The Lodi Llama', 'The Marites Maya Bird', 'The Sassy Shih Tzu', 'The Ninong Who Hides',
   'The Overthinking Owl', 'The Puto Bumbong Panda', 'The Lechon-Loving Lion', 'The Pa-Fall Platypus',

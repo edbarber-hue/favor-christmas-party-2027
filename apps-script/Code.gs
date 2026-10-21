@@ -122,7 +122,7 @@ var KK_TRIVIA_SEED = [
 
 /* Funny mystery animal names. One is given to each Mystery Person at the draw. */
 var KK_ANIMALS = [
-  'The Chismosang Tarsier', 'The Kuripot Kalabaw', 'The Sleepy Sloth (5 More Minutes)', 'The Petmalu Penguin',
+  'The Chismosang Tarsier', 'The Kuripot Kalabaw', 'The 5-More-Minutes Sloth', 'The Petmalu Penguin',
   'The Late-to-Simbang-Gabi Goat', 'The Noche Buena Ninja Pig', 'The Hangry Hippo', 'The Tita Flamingo',
   'The Lodi Llama', 'The Marites Maya Bird', 'The Sassy Shih Tzu', 'The Ninong Who Hides',
   'The Overthinking Owl', 'The Puto Bumbong Panda', 'The Lechon-Loving Lion', 'The Pa-Fall Platypus',
@@ -288,7 +288,8 @@ var KKCore = (function () {
     var out = { name: me.name, wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
     if (s.phase !== 'signup' && me.shopsFor) {
       var target = byMystery(players, me.shopsFor);
-      if (target) out.shoppingFor = { no: target.mystery, alias: target.alias || '', name: target.name, wishes: target.wishes };
+      if (target) out.shoppingFor = { no: target.mystery, alias: target.alias || '', wishes: target.wishes };
+      if (target && testMode) out.secretName = target.name;
     }
     if (s.phase === 'revealed' || testMode) { out.myMystery = me.mystery; out.myAlias = me.alias || ''; }
     return out;

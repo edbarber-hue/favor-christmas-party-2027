@@ -364,3 +364,8 @@ details summary { cursor: pointer; font-weight: 700; }
 .party-btn:disabled { opacity: .6; cursor: wait; }
 .party-btn b { display: block; font-weight: 900; font-stretch: 118%; text-transform: uppercase; font-size: 1.2rem; color: var(--pink); margin-bottom: 6px; }
 .party-btn span { font-size: .92rem; opacity: .9; line-height: 1.4; }
+
+.ticket .knit-name { flex-direction: column; align-items: center; gap: 10px; }
+.ticket .knit-name .knit-text { height: clamp(34px, 9vw, 54px); }
+.brief { background: #eadfc6; border-radius: 4px; padding: 12px 14px; margin: 0 0 12px; font-size: .92rem; line-height: 1.5; color: var(--ink); }
+.brief span { display: block; margin-top: 4px; color: var(--ink-soft); }
