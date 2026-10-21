@@ -260,7 +260,7 @@
               '<p>' + comeBackLine(info && info.deadline) + '</p>' +
               countdownHTML(info && info.deadline) +
               '<button class="btn" id="remindBtn">Remind me on my phone</button>' +
-              '<p style="margin:14px 0 0"><a class="textlink" href="#/me">Go to my page</a></p>' +
+              '<p style="margin:14px 0 0"><a class="textlink" href="#/join">Edit my wishlist</a> &nbsp; <a class="textlink" href="#/me">Go to my page</a></p>' +
             '</div>'
           );
           $('#remindBtn').onclick = function () { openRemind(info); };
@@ -344,7 +344,7 @@
         '<a class="btn" href="#/reveal">Watch the reveal</a></div>';
     }
     html += '<div class="card"><div class="row"><h3 style="margin:0">My wishlist</h3><span class="spacer"></span>' +
-      (s.phase !== 'revealed' && !test && !s.editsClosed ? '<a class="btn secondary small" href="#/join">Edit</a>' : '') + '</div>' +
+      (s.phase !== 'revealed' && !test && !s.editsClosed ? '<a class="btn secondary small" href="#/join">Edit my wishlist</a>' : '') + '</div>' +
       '<div style="margin-top:6px">' + wishListHTML(d.wishes) + '</div></div>' +
       (test ? '' : '<p class="center"><button class="btn ghost small" id="logout" style="color:var(--cream)">Log out</button></p>');
     render(html);
@@ -959,14 +959,12 @@
     var tile = function (n, id, title, text) {
       return '<button class="phase-btn" id="' + id + '"><span class="pn">' + n + '</span><b>' + title + '</b><span>' + text + '</span></button>';
     };
-    return '<div class="card phases"><h2>Test each phase</h2>' +
-      '<p class="muted">Each button sets things up for that phase, then opens it. Sample people are added when there aren\'t enough.</p>' +
-      '<div class="phase-grid">' +
-        tile(1, 'ph1', 'Check-in', 'Sign up with a name, PIN and wishlist, then log in') +
-        tile(2, 'ph2', 'Who\'s my person', 'Names get drawn. See "Want to see who you got?" and the alias you got') +
-        tile(3, 'ph3', 'Game &amp; trivia', 'Full-screen questions with an answer reveal. Print the score sheet from the organizer page') +
-        tile(4, 'ph4', 'The reveal', 'Every alias on one screen, then reveal who everyone was') +
-      '</div><div id="phaseErr" hidden></div></div>';
+    return '<div class="phase-grid big">' +
+        tile(1, 'ph1', 'Sign up', 'Join with your name, PIN and wishlist') +
+        tile(2, 'ph2', 'Name reveal &amp; wishlist', 'See the alias you got and what they\'re asking for') +
+        tile(3, 'ph3', 'Trivia', 'Full-screen questions with the answer reveal') +
+        tile(4, 'ph4', 'Complete reveal', 'Every Mystery Person revealed at once') +
+      '</div><div id="phaseErr" hidden></div>';
   }
 
   // Puts the demo back into sign-up mode (dates moved if needed, draw undone).
@@ -989,6 +987,8 @@
   }
 
   function bindPhases(s, ps) {
+    [1, 2, 3, 4].forEach(function (n) { var b = $('#ph' + n); if (b) b.onclick = function () { walkTo(n); }; });
+    return;
     var run = function (id, fn) {
       var b = $('#' + id); if (!b) return;
       b.onclick = function () {
@@ -1174,20 +1174,17 @@
         '</div>';
       }).join('');
       render(
-        '<div class="test-bar">Test mode shows every secret. Keep it off the projector.</div>' +
         '<div class="page-head"><h1>Test mode</h1><span class="spacer"></span>' +
-          '<a class="btn ghost small" href="#/organizer">Organizer</a>' +
-          (drawn ? '<button class="btn ghost small" id="preview">Preview the reveal</button>' : '') +
-          (drawn && s.phase === 'drawn' ? '<button class="btn ghost small" id="redraw">Draw again</button>' : '') +
-          (!drawn && ps.length >= 3 ? '<button class="btn ghost small" id="testDraw">Draw names now</button>' : '') +
-          '<a class="btn ghost small" href="#/trivia">Trivia</a><a class="btn ghost small" href="#/sheet">Score sheet</a></div>' +
+          '<button class="btn ghost small" id="howTo">Instructions</button>' +
+          '<a class="btn ghost small" href="#/questions">Questions list</a>' +
+          '<a class="btn ghost small" href="#/organizer">Organizer</a></div>' +
         phasesCard(s, drawn) +
-        speedCard(s, drawn) +
-        GUIDE(s) +
-        '<div class="page-head" style="margin-top:28px"><h2 style="margin:0">Everyone</h2></div>' +
-        (drawn ? '' : '<div class="notice">Names haven\'t been drawn yet, so nobody has a Mystery # or animal name. Draw names on the Organizer page to see the full picture.</div>') +
-        (API.demo && !ps.length ? '<div class="notice">No one here yet — add sample people from the Organizer page.</div>' : '') +
-        '<div class="tgrid">' + cards + '</div>'
+        '<details class="more"><summary>Everyone (shows every secret)</summary>' +
+          (drawn && s.phase === 'drawn' ? '<p style="margin:12px 0"><button class="btn small" id="redraw">Draw again</button></p>' : '') +
+          (!drawn && ps.length >= 3 ? '<p style="margin:12px 0"><button class="btn small" id="testDraw">Draw names now</button></p>' : '') +
+          (!ps.length ? '<p class="muted" style="margin-top:12px">No one yet. Phase 1 adds you, and phases 2–4 add sample people.</p>' : '') +
+          '<div class="tgrid" style="margin-top:12px">' + cards + '</div></details>' +
+        '<details class="more"><summary>Timer tools</summary>' + speedCard(s, drawn) + '</details>'
       );
       var doDraw = function (msg) {
         ask(msg, 'Draw names').then(function (ok) {
@@ -1200,6 +1197,7 @@
       if ($('#testDraw')) $('#testDraw').onclick = function () { doDraw('Draw names now? Sign-ups close and everyone gets their person.'); };
       bindSpeed(s);
       bindPhases(s, ps);
+      $('#howTo').onclick = function () { openModal('<h2>How it all works</h2>' + GUIDE(s) + '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>Close</button></div>').scrollTop = 0; };
       if ($('#preview')) $('#preview').onclick = function () {
         var list = ps.filter(function (p) { return p.mystery; }).map(function (p) {
           var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
@@ -1343,9 +1341,93 @@
   }
 
   // =====================================================================
+  // QUESTIONS LIST
+  // =====================================================================
+  function viewQuestions() {
+    if (!adminPw()) return adminLogin(viewQuestions);
+    loading();
+    API.call('gameLoad', { password: adminPw() }).then(function (d) {
+      var qs = d.trivia || [];
+      render(
+        '<div class="page-head no-print"><h1>Questions</h1><span class="spacer"></span>' +
+          '<a class="btn ghost small" href="#/test">Test mode</a><button class="btn ghost small" id="printQs">Print</button>' +
+          '<a class="btn cream" href="#/trivia">Start trivia</a></div>' +
+        '<div class="card qlist">' +
+          '<p class="muted no-print" style="margin-top:0">' + qs.length + ' questions. Tap one to start the trivia screen there.' + (API.demo ? '' : ' Edit them in the Trivia tab of the Google Sheet.') + '</p>' +
+          '<ol>' + qs.map(function (q, i) {
+            return '<li><a href="#" data-q="' + i + '"><span class="q">' + esc(q.q) + '</span><span class="a">' + esc(q.a) + '</span></a></li>';
+          }).join('') + '</ol></div>'
+      );
+      $$('[data-q]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); store('triviaIndex', Number(a.dataset.q)); location.hash = '#/trivia'; }; });
+      $('#printQs').onclick = function () { window.print(); };
+    }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewQuestions); } else render('<div class="error">' + esc(e.message) + '</div>'); });
+  }
+
+  // =====================================================================
+  // TEST WALKTHROUGH: go through the guest experience phase by phase
+  // =====================================================================
+  var PHASES = ['Sign up', 'Name reveal & wishlist', 'Trivia', 'Complete reveal'];
+  function walkState() { return store('walk'); }
+
+  function renderWalkBar() {
+    var bar = document.getElementById('walkBar');
+    var w = walkState();
+    document.body.classList.toggle('walking', !!(w && adminPw()));
+    if (!w || !adminPw()) { bar.hidden = true; bar.innerHTML = ''; return; }
+    var n = w.phase;
+    var next = n === 1 ? 'Skip the timer and draw names' : n === 2 ? 'Next: Trivia' : n === 3 ? 'Next: Complete reveal' : 'Start over';
+    bar.hidden = false;
+    bar.innerHTML = '<div class="wb-inner"><span class="wb-title">Test walkthrough</span>' +
+      '<ol class="wb-steps">' + PHASES.map(function (p, i) {
+        return '<li class="' + (i + 1 === n ? 'on' : i + 1 < n ? 'done' : '') + '"><button data-walk="' + (i + 1) + '"><b>' + (i + 1) + '</b>' + esc(p) + '</button></li>';
+      }).join('') + '</ol>' +
+      '<button class="btn pink small" id="wbNext">' + next + '</button>' +
+      '<button class="wb-exit" id="wbExit">Exit</button></div>';
+    $$('[data-walk]', bar).forEach(function (b) { b.onclick = function () { walkTo(Number(b.dataset.walk)); }; });
+    $('#wbNext', bar).onclick = function () { walkTo(n === 4 ? 1 : n + 1); };
+    $('#wbExit', bar).onclick = function () { store('walk', null); location.hash = '#/test'; };
+  }
+
+  function goHash(h) { if (location.hash === h) route(); else location.hash = h; }
+
+  function clearGuestFlags() {
+    try { Object.keys(sessionStorage).forEach(function (k) { if (/^kk-(opened-|seen-)/.test(k)) sessionStorage.removeItem(k); }); } catch (e) {}
+  }
+
+  function walkTo(n) {
+    var bar = document.getElementById('walkBar'); $$('button', bar).forEach(function (b) { b.disabled = true; });
+    var fail = function (e) { store('walk', { phase: (walkState() || {}).phase || 1 }); renderWalkBar(); tell(e.message || String(e)); };
+    API.call('adminList', { password: adminPw() }).then(function (d) {
+      var s = d.settings, ps = d.players;
+      if (n === 1) {
+        // Fresh start: you type your own name, PIN and wishlist like a guest.
+        var prep = API.demo
+          ? Promise.resolve().then(function () { API.demoReset(); })
+          : ensureSignup(s);
+        return prep.then(function () {
+          store('me', null); clearGuestFlags();
+          store('walk', { phase: 1 }); goHash('#/join');
+        });
+      }
+      if (n === 2) {
+        var me = store('me');
+        if (!me || !me.name) { tell('Sign up first (Phase 1), then skip the timer.'); store('walk', { phase: 1 }); return goHash('#/join'); }
+        return ensureDrawn(s, ps).then(function () {
+          clearGuestFlags();
+          store('walk', { phase: 2 }); goHash('#/me');
+        });
+      }
+      return ensureDrawn(s, ps).then(function () {
+        store('walk', { phase: n });
+        goHash(n === 3 ? '#/trivia' : '#/summary');
+      });
+    }).catch(fail);
+  }
+
+  // =====================================================================
   // ROUTER
   // =====================================================================
-  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal, test: viewTest, summary: viewSummary, scores: viewScores, trivia: viewTrivia, sheet: viewSheet };
+  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal, test: viewTest, summary: viewSummary, scores: viewScores, trivia: viewTrivia, sheet: viewSheet, questions: viewQuestions };
   function route() {
     timers.forEach(clearInterval); timers = [];
     keyHandler = null; closeModal();
@@ -1357,6 +1439,7 @@
     $$('.nav a').forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#/' + name); });
     window.scrollTo(0, 0);
     fn();
+    renderWalkBar();
   }
   addEventListener('hashchange', route);
 

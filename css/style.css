@@ -434,8 +434,8 @@ body.stage-mode .app { max-width: none; padding: 0; }
 .ts-exit, .ts-full { font: inherit; font-size: .9rem; color: var(--cream); opacity: .6; background: none; border: 1.5px solid rgba(242,232,212,.4); border-radius: 999px; padding: 7px 14px; text-decoration: none; cursor: pointer; }
 .ts-exit:hover, .ts-full:hover { opacity: 1; }
 .ts-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: clamp(20px, 4vh, 48px); padding: 4vh 2vw; }
-.ts-q { font-weight: 850; font-stretch: 108%; font-size: clamp(2rem, 5.2vw, 5rem); line-height: 1.12; max-width: 20ch; text-wrap: balance; }
-.ts-a { min-height: 1.4em; font-size: clamp(1.8rem, 4.4vw, 4.2rem); }
+.ts-q { font-weight: 850; font-stretch: 108%; font-size: clamp(2.4rem, 6.2vw, 6rem); line-height: 1.1; max-width: 22ch; text-wrap: balance; }
+.ts-a { min-height: 1.4em; font-size: clamp(2.2rem, 5.6vw, 5.4rem); }
 .ts-a span { display: inline-block; font-weight: 900; font-stretch: 115%; background: var(--pink); color: var(--pine-deep); padding: .15em .6em; border-radius: 10px;
   transform: scale(.6) rotate(-3deg); opacity: 0; transition: transform .45s cubic-bezier(.2,1.4,.4,1), opacity .25s; }
 .ts-a.on span { transform: none; opacity: 1; }
@@ -469,3 +469,41 @@ body.stage-mode .app { max-width: none; padding: 0; }
   .sheet { padding: 0; border-radius: 0; }
   .sh-table tr { break-inside: avoid; }
 }
+
+/* ---------- Simpler test mode ---------- */
+.phase-grid.big { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 22px; }
+.phase-grid.big .phase-btn { min-height: 150px; padding-top: 64px; padding-left: 20px; }
+.phase-grid.big .phase-btn .pn { left: 20px; top: 20px; width: 38px; height: 38px; font-size: 1.15rem; }
+.phase-grid.big .phase-btn b { font-size: 1.35rem; }
+details.more { color: var(--cream); margin-bottom: 12px; }
+details.more > summary { font-weight: 700; padding: 12px 0; border-top: 1px solid rgba(242,232,212,.3); opacity: .85; }
+details.more .card { margin-top: 10px; }
+.modal-box .guide-grid { grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) { .modal-box .guide-grid { grid-template-columns: 1fr; } }
+.modal-box .guide-grid .card { box-shadow: none; background: #f7f0e1; }
+
+/* ---------- Questions list ---------- */
+.qlist ol { margin: 0; padding-left: 2.2em; display: grid; gap: 2px; }
+.qlist li { padding: 2px 0; }
+.qlist a { display: grid; grid-template-columns: 1fr auto; gap: 14px; padding: 9px 10px; border-radius: 4px; text-decoration: none; color: var(--ink); }
+.qlist a:hover { background: #eadfc6; }
+.qlist .a { color: var(--red); font-weight: 700; text-align: right; }
+@media (max-width: 560px) { .qlist a { grid-template-columns: 1fr; gap: 2px; } .qlist .a { text-align: left; } }
+@media print { .qlist { box-shadow: none; padding: 0; background: #fff; } .qlist a { padding: 4px 0; } }
+
+/* ---------- Test walkthrough bar ---------- */
+.walk-bar { position: sticky; top: 0; z-index: 40; background: var(--pink); color: var(--pine-deep); box-shadow: 0 6px 20px -10px rgba(0,0,0,.5); }
+.wb-inner { max-width: 1320px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.wb-title { font-weight: 900; font-stretch: 112%; text-transform: uppercase; font-size: .85rem; }
+.wb-steps { list-style: none; display: flex; gap: 6px; margin: 0; padding: 0; flex: 1; flex-wrap: wrap; }
+.wb-steps button { font: inherit; font-size: .85rem; font-weight: 650; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.35); color: var(--pine-deep); border: 0; border-radius: 999px; padding: 6px 12px 6px 6px; cursor: pointer; }
+.wb-steps b { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(31,51,36,.15); font-size: .78rem; }
+.wb-steps li.on button { background: var(--pine); color: var(--pink); }
+.wb-steps li.on b { background: var(--pink); color: var(--pine-deep); }
+.wb-steps li.done b { background: var(--pine); color: var(--pink); }
+.walk-bar .btn.pink { background: var(--pine); color: var(--pink); }
+.walk-bar .btn.pink:hover { background: var(--pine-deep); }
+.wb-exit { font: inherit; font-size: .85rem; background: none; border: 0; color: var(--pine-deep); text-decoration: underline; cursor: pointer; }
+body.stage-mode .walk-bar { position: fixed; left: 0; right: 0; bottom: 0; top: auto; opacity: .92; }
+@media (max-width: 640px) { .wb-steps button { font-size: 0; padding: 4px; } .wb-steps b { font-size: .78rem; } }
+body.walking.stage-mode .trivia-stage { padding-bottom: 84px; }
