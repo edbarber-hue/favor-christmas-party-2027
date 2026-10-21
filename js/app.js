@@ -278,14 +278,14 @@
       html += '<div class="card center pop come-back"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
         '<p>' + comeBackLine(s.deadline) + '</p>' + countdownHTML(s.deadline) +
         (test ? '' : '<button class="btn" id="remindBtn">Remind me on my phone</button>') + '</div>';
-    } else if (d.shoppingFor && !test && !store('opened-' + d.name)) {
+    } else if (d.shoppingFor && (test ? !d._opened : !store('opened-' + d.name))) {
       html += '<div class="ticket gate pop">' + KNIT.stockings(5) +
         '<div class="label">Names have been drawn</div>' +
         '<div class="gate-q">Want to see who you got?</div>' +
         '<button class="btn pink" id="openGift">Show me</button></div>';
       render(html);
       $('#openGift').onclick = function () {
-        store('opened-' + d.name, 1);
+        if (test) d._opened = true; else store('opened-' + d.name, 1);
         var t = $('.ticket'); t.classList.add('opening');
         setTimeout(function () { meDashboard(d); confetti(170); }, 650);
       };
@@ -890,7 +890,7 @@
         return '<div class="tcard">' +
           '<div class="row"><div><div class="t-name">' + esc(p.name) + '</div>' +
             (p.mystery ? '<div class="t-alias">#' + p.mystery + ' · ' + esc(p.alias) + '</div>' : '<div class="t-alias muted">Not drawn yet</div>') + '</div>' +
-            '<span class="spacer"></span><a class="btn small" href="#/test/as/' + encodeURIComponent(p.id) + '">Open as ' + esc(p.name.split(' ')[0]) + '</a></div>' +
+            '<span class="spacer"></span><a class="btn small" href="#/test/as/' + encodeURIComponent(p.id) + '">' + (p.mystery ? 'See who ' + esc(p.name.split(' ')[0]) + ' got' : 'Open as ' + esc(p.name.split(' ')[0])) + '</a></div>' +
           (t ? '<div class="t-shop">🎅 Shopping for <b>#' + t.mystery + ' ' + esc(t.alias) + '</b> (' + esc(t.name) + ')</div>' : '') +
           '<div class="wish-mini" style="margin-top:8px">' + p.wishes.map(function (w) { return esc(w.item); }).join(' · ') + '</div>' +
         '</div>';
@@ -900,6 +900,8 @@
         '<div class="page-head"><h1>Test mode</h1><span class="spacer"></span>' +
           '<a class="btn ghost small" href="#/organizer">Organizer</a>' +
           (drawn ? '<button class="btn ghost small" id="preview">Preview the reveal</button>' : '') +
+          (drawn && s.phase === 'drawn' ? '<button class="btn ghost small" id="redraw">Draw again</button>' : '') +
+          (!drawn && ps.length >= 3 ? '<button class="btn ghost small" id="testDraw">Draw names now</button>' : '') +
           '<a class="btn ghost small" href="#/board">Party board</a></div>' +
         GUIDE(s) +
         '<div class="page-head" style="margin-top:28px"><h2 style="margin:0">Everyone</h2></div>' +
@@ -907,6 +909,13 @@
         (API.demo && !ps.length ? '<div class="notice">No one here yet — add sample people from the Organizer page.</div>' : '') +
         '<div class="tgrid">' + cards + '</div>'
       );
+      var doDraw = function (msg) {
+        if (msg && !confirm(msg)) return;
+        API.call('draw', { password: adminPw() }).then(function () { confetti(120); viewTest(); })
+          .catch(function (e) { alert(e.message); });
+      };
+      if ($('#redraw')) $('#redraw').onclick = function () { doDraw('Draw again? Everyone gets a new person, number and animal name. Only do this while testing, before anyone has shopped.'); };
+      if ($('#testDraw')) $('#testDraw').onclick = function () { doDraw('Draw names now? Sign-ups close and everyone gets their person.'); };
       if ($('#preview')) $('#preview').onclick = function () {
         var list = ps.filter(function (p) { return p.mystery; }).map(function (p) {
           var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
