@@ -479,8 +479,8 @@
       actions = '<p class="muted">When everyone\'s in, draw names. Sign-ups close and everyone gets someone to shop for.</p>' +
         '<button class="btn" id="draw"' + (ps.length < 3 ? ' disabled' : '') + '>Draw names</button>';
     } else if (s.phase === 'drawn') {
-      actions = '<p class="muted">Party day: put the party board on the TV. Once every gift is open, start the reveal.</p>' +
-        '<div class="row"><a class="btn" href="#/scores">Score keeper</a><a class="btn secondary" href="' + TV_URL() + '" target="_blank" rel="noopener">TV screen</a><a class="btn secondary" href="#/summary">All aliases</a><button class="btn secondary" id="revealOn">Start the reveal</button></div>' +
+      actions = '<p class="muted">Party day: print the score sheet, put the trivia screen on the TV, and when every gift is open, reveal everyone.</p>' +
+        '<div class="row"><a class="btn" href="#/trivia">Trivia screen</a><a class="btn secondary" href="#/sheet">Print score sheet</a><a class="btn secondary" href="#/summary">All aliases</a><button class="btn secondary" id="revealOn">Start the reveal</button></div>' +
         '<p style="margin:14px 0 0"><button class="btn ghost small" id="reopen">Undo the draw and reopen sign-ups</button></p>';
     } else {
       actions = '<p class="muted">The reveal is live for everyone.</p>' +
@@ -927,8 +927,8 @@
         '<li>Everyone opens together, the reveal shows who each Mystery Person was, then people trade to get their own wishlist.</li>' +
       '</ol></div>' +
       '<div class="card"><h3>Party day rules</h3><ul>' +
-        '<li>Put the TV screen up for everyone: it shows the bags and the current question.</li>' +
-        '<li>Run the game from the Score keeper on your phone. Tap + for whoever answers first. Scores stay private.</li>' +
+        '<li>Put the trivia screen on the TV. Read the question, then press Reveal answer (or the space bar).</li>' +
+        '<li>Keep score on the printed score sheet: tick a box for each right answer.</li>' +
         '<li>First to 3 correct picks a bag from the table, or steals someone else\'s.</li>' +
         '<li>A bag locks after it\'s been stolen twice.</li>' +
         '<li>Holding a bag means you sit out of trivia. If yours is stolen, you\'re back in.</li>' +
@@ -939,7 +939,8 @@
         '<li>Send the invite from the Organizer page.</li>' +
         '<li>Names draw themselves at the deadline. Want it earlier? Press Draw names.</li>' +
         '<li>Remind everyone to log in and see who they\'re shopping for.</li>' +
-        '<li>Party day: open the TV screen on the TV, and the Score keeper on your phone.</li>' +
+        '<li>Before the party: print the score sheet (Organizer page).</li>' +
+        '<li>Party day: open the trivia screen on the TV and press F for full screen.</li>' +
         '<li>When every bag is opened, put All aliases on the TV and press Reveal everyone. Or reveal one at a time with the space bar.</li>' +
       '</ol></div>' +
       '<div class="card"><h3>Good to know</h3><ul>' +
@@ -963,7 +964,7 @@
       '<div class="phase-grid">' +
         tile(1, 'ph1', 'Check-in', 'Sign up with a name, PIN and wishlist, then log in') +
         tile(2, 'ph2', 'Who\'s my person', 'Names get drawn. See "Want to see who you got?" and the alias you got') +
-        tile(3, 'ph3', 'Game &amp; trivia', 'Your private score keeper, plus the TV screen everyone sees') +
+        tile(3, 'ph3', 'Game &amp; trivia', 'Full-screen questions with an answer reveal. Print the score sheet from the organizer page') +
         tile(4, 'ph4', 'The reveal', 'Every alias on one screen, then reveal who everyone was') +
       '</div><div id="phaseErr" hidden></div></div>';
   }
@@ -1012,7 +1013,7 @@
       return ensureDrawn(s, ps).then(function () { return API.call('adminList', { password: adminPw() }); })
         .then(function (d) { location.hash = '#/test/as/' + encodeURIComponent(myself(d.players).id); });
     });
-    run('ph3', function () { return ensureDrawn(s, ps).then(function () { location.hash = '#/scores'; }); });
+    run('ph3', function () { location.hash = '#/trivia'; });
     run('ph4', function () { return ensureDrawn(s, ps).then(function () { location.hash = '#/summary'; }); });
   }
 
@@ -1179,7 +1180,7 @@
           (drawn ? '<button class="btn ghost small" id="preview">Preview the reveal</button>' : '') +
           (drawn && s.phase === 'drawn' ? '<button class="btn ghost small" id="redraw">Draw again</button>' : '') +
           (!drawn && ps.length >= 3 ? '<button class="btn ghost small" id="testDraw">Draw names now</button>' : '') +
-          '<a class="btn ghost small" href="#/scores">Score keeper</a></div>' +
+          '<a class="btn ghost small" href="#/trivia">Trivia</a><a class="btn ghost small" href="#/sheet">Score sheet</a></div>' +
         phasesCard(s, drawn) +
         speedCard(s, drawn) +
         GUIDE(s) +
@@ -1256,16 +1257,103 @@
   }
 
   // =====================================================================
+  // TRIVIA: full-screen questions for the TV, answer revealed on cue
+  // =====================================================================
+  function viewTrivia() {
+    if (!adminPw()) return adminLogin(viewTrivia);
+    loading();
+    API.call('gameLoad', { password: adminPw() }).then(function (d) {
+      var qs = d.trivia || [];
+      var i = Math.min(Number(store('triviaIndex')) || 0, Math.max(0, qs.length - 1));
+      var shown = false;
+      document.body.classList.add('stage-mode');
+      function draw() {
+        var q = qs[i];
+        render(
+          '<div class="trivia-stage">' +
+            '<div class="ts-top"><a class="ts-exit" href="#/organizer">Exit</a><span class="ts-count">Question ' + (i + 1) + ' of ' + qs.length + '</span>' +
+              '<button class="ts-full" id="tsFull">Full screen</button></div>' +
+            '<div class="ts-body">' +
+              (q ? '<div class="ts-q">' + esc(q.q) + '</div>' +
+                '<div class="ts-a' + (shown ? ' on' : '') + '"><span>' + esc(q.a) + '</span></div>'
+                : '<div class="ts-q">No questions yet. Add them in the Trivia tab of the Google Sheet.</div>') +
+            '</div>' +
+            '<div class="ts-controls">' +
+              '<button class="ts-btn ghost" id="tsPrev"' + (i ? '' : ' disabled') + '>Back</button>' +
+              '<button class="ts-btn big" id="tsReveal">' + (shown ? 'Hide answer' : 'Reveal answer') + '</button>' +
+              '<button class="ts-btn ghost" id="tsNext"' + (i < qs.length - 1 ? '' : ' disabled') + '>Next</button>' +
+            '</div>' +
+            '<div class="ts-keys">Space: reveal answer · Arrow keys: next / back · F: full screen</div>' +
+          '</div>'
+        );
+        $('#tsPrev').onclick = prev; $('#tsNext').onclick = next; $('#tsReveal').onclick = toggle;
+        $('#tsFull').onclick = full;
+      }
+      function go(n) { i = n; shown = false; store('triviaIndex', i); draw(); }
+      function next() { if (i < qs.length - 1) go(i + 1); }
+      function prev() { if (i > 0) go(i - 1); }
+      function toggle() {
+        shown = !shown;
+        var a = $('.ts-a'); if (a) a.classList.toggle('on', shown);
+        $('#tsReveal').textContent = shown ? 'Hide answer' : 'Reveal answer';
+        if (shown) confetti(80);
+      }
+      function full() {
+        var el = document.documentElement;
+        if (!document.fullscreenElement) { (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el); }
+        else { (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document); }
+      }
+      keyHandler = function (e) {
+        if (!modal.hidden) return;
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+        else if (e.key === 'f' || e.key === 'F') full();
+      };
+      draw();
+    }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewTrivia); } else render('<div class="error">' + esc(e.message) + '</div>'); });
+  }
+
+  // =====================================================================
+  // PRINTABLE SCORE SHEET
+  // =====================================================================
+  function viewSheet() {
+    if (!adminPw()) return adminLogin(viewSheet);
+    loading();
+    API.call('adminList', { password: adminPw() }).then(function (d) {
+      var s = d.settings, names = d.players.map(function (p) { return p.name; }).sort(function (a, b) { return a.localeCompare(b); });
+      var boxes = ''; for (var k = 0; k < 10; k++) boxes += '<i></i>';
+      var rows = names.map(function (n, idx) {
+        return '<tr><td class="sh-n">' + (idx + 1) + '</td><td class="sh-name">' + esc(n) + '</td><td class="sh-tally">' + boxes + '</td><td class="sh-bag"></td><td class="sh-bag"></td></tr>';
+      }).join('');
+      for (var e = 0; e < 3; e++) rows += '<tr class="sh-blank"><td class="sh-n"></td><td class="sh-name"></td><td class="sh-tally">' + boxes + '</td><td class="sh-bag"></td><td class="sh-bag"></td></tr>';
+      render(
+        '<div class="page-head no-print"><h1>Score sheet</h1><span class="spacer"></span>' +
+          '<a class="btn ghost small" href="#/organizer">Organizer</a><button class="btn cream" id="printSheet">Print</button></div>' +
+        '<div class="sheet">' +
+          '<div class="sh-head"><img src="assets/favor-logo.png" alt="" class="sh-logo"><div><div class="sh-title">' + esc(s.eventName) + '</div>' +
+            '<div class="sh-sub">Mystery Kris Kringle trivia. First to 3 correct picks a gift or steals one.</div></div></div>' +
+          '<table class="sh-table"><thead><tr><th></th><th>Name</th><th>Correct answers (tick one per right answer)</th><th>Gift #</th><th>Stolen to #</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table>' +
+          '<p class="sh-foot">' + names.length + ' players. Blank rows at the bottom for late arrivals.</p>' +
+        '</div>'
+      );
+      $('#printSheet').onclick = function () { window.print(); };
+    }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewSheet); } else render('<div class="error">' + esc(e.message) + '</div>'); });
+  }
+
+  // =====================================================================
   // ROUTER
   // =====================================================================
-  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal, test: viewTest, summary: viewSummary, scores: viewScores };
+  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal, test: viewTest, summary: viewSummary, scores: viewScores, trivia: viewTrivia, sheet: viewSheet };
   function route() {
     timers.forEach(clearInterval); timers = [];
     keyHandler = null; closeModal();
+    document.body.classList.remove('stage-mode');
     var name = (location.hash.replace(/^#\/?/, '').split('/')[0] || '');
     var fn = routes[name] || viewHome;
     app.classList.remove('wide');
-    if (name === 'organizer' || name === 'summary') app.classList.add('wide');
+    if (name === 'organizer' || name === 'summary' || name === 'sheet') app.classList.add('wide');
     $$('.nav a').forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#/' + name); });
     window.scrollTo(0, 0);
     fn();

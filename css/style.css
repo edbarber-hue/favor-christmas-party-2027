@@ -423,3 +423,49 @@ details summary { cursor: pointer; font-weight: 700; }
 
 .sum-no.red { color: var(--red); }
 .sum-back .sum-name { font-size: 1.75rem; margin-top: 8px; }
+
+/* ---------- Full-screen trivia ---------- */
+body.stage-mode .topbar, body.stage-mode .foot, body.stage-mode .demo-bar { display: none; }
+body.stage-mode .app { max-width: none; padding: 0; }
+.trivia-stage { min-height: 100vh; display: flex; flex-direction: column; padding: clamp(16px, 3vw, 40px);
+  background-color: var(--pine); background-image: var(--knit), var(--noise); color: var(--cream); }
+.ts-top { display: flex; align-items: center; gap: 12px; }
+.ts-count { flex: 1; text-align: center; color: var(--pink); font-weight: 800; font-size: clamp(1rem, 1.6vw, 1.4rem); }
+.ts-exit, .ts-full { font: inherit; font-size: .9rem; color: var(--cream); opacity: .6; background: none; border: 1.5px solid rgba(242,232,212,.4); border-radius: 999px; padding: 7px 14px; text-decoration: none; cursor: pointer; }
+.ts-exit:hover, .ts-full:hover { opacity: 1; }
+.ts-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: clamp(20px, 4vh, 48px); padding: 4vh 2vw; }
+.ts-q { font-weight: 850; font-stretch: 108%; font-size: clamp(2rem, 5.2vw, 5rem); line-height: 1.12; max-width: 20ch; text-wrap: balance; }
+.ts-a { min-height: 1.4em; font-size: clamp(1.8rem, 4.4vw, 4.2rem); }
+.ts-a span { display: inline-block; font-weight: 900; font-stretch: 115%; background: var(--pink); color: var(--pine-deep); padding: .15em .6em; border-radius: 10px;
+  transform: scale(.6) rotate(-3deg); opacity: 0; transition: transform .45s cubic-bezier(.2,1.4,.4,1), opacity .25s; }
+.ts-a.on span { transform: none; opacity: 1; }
+.ts-controls { display: flex; justify-content: center; align-items: center; gap: 14px; }
+.ts-btn { font: inherit; font-weight: 800; font-stretch: 110%; cursor: pointer; border-radius: 999px; border: 2px solid rgba(242,232,212,.5); background: transparent; color: var(--cream); padding: 14px 26px; font-size: 1.05rem; }
+.ts-btn.big { background: var(--pink); border-color: var(--pink); color: var(--pine-deep); padding: 18px 40px; font-size: 1.3rem; }
+.ts-btn:disabled { opacity: .3; cursor: default; }
+.ts-keys { text-align: center; font-size: .8rem; opacity: .45; margin-top: 14px; }
+@media (prefers-reduced-motion: reduce) { .ts-a span { transition: none; } }
+
+/* ---------- Printable score sheet ---------- */
+.sheet { background: #fff; color: #1b1b1b; border-radius: var(--radius); padding: 28px; }
+.sh-head { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; }
+.sh-logo { width: 48px; height: auto; filter: brightness(0); }
+.sh-title { font-weight: 900; font-stretch: 115%; text-transform: uppercase; font-size: 1.5rem; }
+.sh-sub { font-size: .9rem; color: #555; }
+.sh-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.sh-table th { text-align: left; font-size: .75rem; color: #555; border-bottom: 2px solid #1b1b1b; padding: 6px 8px; }
+.sh-table td { border-bottom: 1px solid #bbb; padding: 9px 8px; height: 38px; }
+.sh-n { width: 28px; color: #888; font-size: .8rem; }
+.sh-name { font-weight: 700; width: 30%; }
+.sh-tally { white-space: nowrap; }
+.sh-tally i { display: inline-block; width: 18px; height: 18px; border: 1.5px solid #333; border-radius: 3px; margin-right: 5px; }
+.sh-bag { width: 80px; border-left: 1px solid #ddd; }
+.sh-foot { font-size: .8rem; color: #777; margin: 12px 0 0; }
+@media print {
+  @page { margin: 12mm; }
+  body { background: #fff !important; }
+  .topbar, .foot, .demo-bar, .no-print, #confetti { display: none !important; }
+  .app { max-width: none; padding: 0; }
+  .sheet { padding: 0; border-radius: 0; }
+  .sh-table tr { break-inside: avoid; }
+}
