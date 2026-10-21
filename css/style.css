@@ -356,3 +356,11 @@ details summary { cursor: pointer; font-weight: 700; }
 .remind-sub { font-family: var(--script); font-size: 2rem; line-height: 1; color: var(--red); margin: -6px 0 12px; }
 .ticket.sample { padding: 56px 22px 30px; }
 .ticket.sample .error { text-align: left; }
+
+.party-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 6px; }
+.party-btn { text-align: left; font: inherit; cursor: pointer; padding: 18px; border-radius: var(--radius); border: 0;
+  color: var(--cream); background-color: var(--pine); background-image: var(--knit), var(--noise); box-shadow: 0 14px 24px -18px rgba(20,5,3,.8); transition: transform .12s; }
+.party-btn:hover { transform: translateY(-2px); }
+.party-btn:disabled { opacity: .6; cursor: wait; }
+.party-btn b { display: block; font-weight: 900; font-stretch: 118%; text-transform: uppercase; font-size: 1.2rem; color: var(--pink); margin-bottom: 6px; }
+.party-btn span { font-size: .92rem; opacity: .9; line-height: 1.4; }

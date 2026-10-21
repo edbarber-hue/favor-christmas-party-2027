@@ -70,6 +70,31 @@
     return modal.firstChild;
   }
   function closeModal() { modal.hidden = true; modal.innerHTML = ''; }
+  // In-page replacements for confirm/prompt/alert, which some browsers (including in-app ones) block silently.
+  function ask(msg, okLabel) {
+    return new Promise(function (resolve) {
+      var box = openModal('<h2>Are you sure?</h2><p>' + esc(msg) + '</p>' +
+        '<div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn ghost" id="askNo">Cancel</button>' +
+        '<button class="btn" id="askYes">' + esc(okLabel || 'Yes, go ahead') + '</button></div>', true);
+      $('#askYes', box).onclick = function () { closeModal(); resolve(true); };
+      $('#askNo', box).onclick = function () { closeModal(); resolve(false); };
+      $('#askYes', box).focus();
+    });
+  }
+  function askPin(name) {
+    return new Promise(function (resolve) {
+      var box = openModal('<h2>New PIN</h2><p class="muted">Pick a new 4-digit PIN for ' + esc(name) + ', then tell them privately.</p>' +
+        '<input id="askPinIn" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off">' +
+        '<div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn ghost" id="askNo">Cancel</button><button class="btn" id="askYes">Save PIN</button></div>', true);
+      var inp = $('#askPinIn', box); inp.focus();
+      $('#askYes', box).onclick = function () { var v = inp.value; closeModal(); resolve(v); };
+      $('#askNo', box).onclick = function () { closeModal(); resolve(null); };
+    });
+  }
+  function tell(msg) {
+    var box = openModal('<p style="margin-top:0">' + esc(msg) + '</p><div class="row" style="justify-content:flex-end"><button class="btn" data-close>OK</button></div>', true);
+    $('[data-close]', box).focus();
+  }
   modal.addEventListener('click', function (e) { if (e.target === modal || e.target.closest('[data-close]')) closeModal(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
 
@@ -463,21 +488,23 @@
       '</details>'
     );
 
-    function act(op, payload, confirmMsg, btn) {
-      if (confirmMsg && !confirm(confirmMsg)) return;
-      busy(btn, true);
-      payload = payload || {}; payload.password = adminPw();
-      return API.call(op, payload).then(function (r) { viewOrganizer(); return r; })
-        .catch(function (e) { busy(btn, false); showError('#actErr', e); });
+    function act(op, payload, confirmMsg, btn, okLabel) {
+      return (confirmMsg ? ask(confirmMsg, okLabel) : Promise.resolve(true)).then(function (ok) {
+        if (!ok) return null;
+        busy(btn, true);
+        payload = payload || {}; payload.password = adminPw();
+        return API.call(op, payload).then(function (r) { viewOrganizer(); return r; })
+          .catch(function (e) { busy(btn, false); showError('#actErr', e); return null; });
+      });
     }
     var on = function (id, fn) { var el = document.getElementById(id); if (el) el.onclick = function () { fn(el); }; };
     on('aOut', function () { store('admin', null); location.hash = '#/'; });
-    on('draw', function (b) { act('draw', {}, 'Draw names now? This closes sign-ups and gives everyone their Mystery Person.', b).then(function () { confetti(); }); });
+    on('draw', function (b) { act('draw', {}, 'Draw names now? Sign-ups close and everyone gets their person.', b, 'Draw names').then(function (r) { if (r) confetti(); }); });
     on('reopen', function (b) { act('reopen', {}, 'Reopen sign-ups? This ERASES the current draw — everyone will get a new Mystery Person when you draw again. Only do this if nobody has shopped yet.', b); });
     on('revealOn', function (b) { act('setPhase', { phase: 'revealed' }, 'Start the reveal? Everyone will be able to see who each Mystery Person was.', b); });
     on('revealOff', function (b) { act('setPhase', { phase: 'drawn' }, null, b); });
     on('seed', function () { API.demoSeed(); viewOrganizer(); });
-    on('demoReset', function () { if (confirm('Erase all demo data?')) { API.demoReset(); store('me', null); viewOrganizer(); } });
+    on('demoReset', function () { ask('Erase all demo data?', 'Erase it').then(function (ok) { if (ok) { API.demoReset(); store('me', null); viewOrganizer(); } }); });
     on('copyInvite', function (b) {
       var t = $('#invite'); t.select();
       (navigator.clipboard ? navigator.clipboard.writeText(t.value) : Promise.reject()).catch(function () { document.execCommand('copy'); });
@@ -486,9 +513,10 @@
     $$('[data-rm]').forEach(function (b) { b.onclick = function () { act('removePlayer', { id: b.dataset.rm }, 'Remove ' + b.dataset.name + ' from the game?', b); }; });
     $$('[data-pin]').forEach(function (b) {
       b.onclick = function () {
-        var pin = prompt('New 4-digit PIN for ' + b.dataset.name + ':');
-        if (pin == null) return;
-        act('resetPin', { id: b.dataset.pin, pin: pin }, null, b).then(function (r) { if (r) alert('Done! Tell ' + b.dataset.name + ' their new PIN privately.'); });
+        askPin(b.dataset.name).then(function (pin) {
+          if (pin == null) return;
+          act('resetPin', { id: b.dataset.pin, pin: pin }, null, b).then(function (r) { if (r) tell('Done. Tell ' + b.dataset.name + ' their new PIN privately.'); });
+        });
       };
     });
     $('#setForm').addEventListener('submit', function (e) {
@@ -681,9 +709,9 @@
           closeModal();
         };
         $('#rClear', box).onclick = function () {
-          if (!confirm('Put every bag back on the table and clear all scores?')) return;
-          change(function () { G.bags.forEach(function (b) { b.holder = ''; b.steals = 0; }); G.scores = {}; G.log = []; });
-          closeModal();
+          ask('Put every bag back on the table and clear all scores?', 'Clear everything').then(function (ok) {
+            if (ok) change(function () { G.bags.forEach(function (b) { b.holder = ''; b.steals = 0; }); G.scores = {}; G.log = []; });
+          });
         };
       }
 
@@ -700,7 +728,7 @@
             '<span class="small muted" id="saveBadge"></span><span class="spacer"></span>' +
             '<button class="btn ghost small" id="undo"' + (history.length ? '' : ' disabled') + '>↶ Undo</button>' +
             '<button class="btn ghost small" id="rules">⚙ Rules</button>' +
-            '<a class="btn secondary small" href="#/reveal">Reveal →</a></div>' +
+            '<a class="btn ghost small" href="#/test">Test mode</a><a class="btn secondary small" href="#/reveal">Reveal</a></div>' +
           (lastBag ? '<div class="notice row"><span>Only one bag left and one person without a bag.</span><span class="spacer"></span><button class="btn small" id="lastBag">Give bag #' + free[0].no + ' to ' + esc(waiting[0]) + '</button></div>' : '') +
           (!free.length ? '<div class="notice">🎉 Every bag has a home! Time to open them all together — then start the reveal.</div>' : '') +
           '<div class="board">' +
@@ -896,18 +924,54 @@
       '<div id="sampleErr" hidden></div></div>';
   }
 
+  // Gets the demo to a drawn state: opens sign-ups, adds sample people if needed, draws.
+  function ensureDrawn(s, ps, force) {
+    var step = Promise.resolve();
+    var drawn = ps.some(function (p) { return p.mystery; });
+    if (drawn && !force) return step;
+    if (s.notOpen) {
+      if (!store('realOpens') && s.opensAt) store('realOpens', s.opensAt);
+      step = step.then(function () { return API.call('saveSettings', { password: adminPw(), values: { opensAt: new Date(Date.now() - 1000).toISOString() } }); });
+    }
+    if (API.demo && ps.length < 3) step = step.then(function () { API.demoSeed(); });
+    return step.then(function () { return API.call('draw', { password: adminPw() }); });
+  }
+
+  function partyCard(drawn, s) {
+    return '<div class="card party">' +
+      '<h2>Practice party day</h2>' +
+      '<p class="muted">Run the trivia game and the big reveal exactly as they\'ll look on the TV.' + (drawn ? '' : ' Names get drawn first so there are bags to play for.') + '</p>' +
+      '<div class="party-grid">' +
+        '<button class="party-btn" id="tryBoard"><b>Trivia &amp; bags</b><span>Ask questions, tap + for the right answer, pick and steal bags</span></button>' +
+        '<button class="party-btn" id="tryReveal"><b>The big reveal</b><span>Flip each card to show who every Mystery Person was</span></button>' +
+      '</div><div id="partyErr" hidden></div></div>';
+  }
+
+  function bindParty(s, ps) {
+    var go = function (btn, after) {
+      btn.disabled = true;
+      ensureDrawn(s, ps).then(function () { return API.call('adminList', { password: adminPw() }); })
+        .then(after).catch(function (e) { btn.disabled = false; showError('#partyErr', e); });
+    };
+    if ($('#tryBoard')) $('#tryBoard').onclick = function () { go(this, function () { location.hash = '#/board'; }); };
+    if ($('#tryReveal')) $('#tryReveal').onclick = function () {
+      go(this, function (d) {
+        var list = d.players.filter(function (p) { return p.mystery; }).map(function (p) {
+          var giver = d.players.filter(function (x) { return x.shopsFor === p.mystery; })[0];
+          return { no: p.mystery, alias: p.alias, name: p.name, giver: giver ? giver.name : '', wishes: p.wishes, holder: '' };
+        }).sort(function (a, b) { return a.no - b.no; });
+        stage({ list: list, preview: true });
+      });
+    };
+  }
+
   function bindSample(s, ps) {
     var b = $('#sampleRun'); if (!b) return;
     b.onclick = function () {
-      if (!API.demo && !confirm('This draws names for everyone on the real list. Only do this while testing. Continue?')) return;
+      (API.demo ? Promise.resolve(true) : ask('This draws names for everyone on the real list. Only do this while testing.', 'Draw names')).then(function (ok) {
+      if (!ok) return;
       busy(b, true, 'Drawing…');
-      var step = Promise.resolve();
-      if (s.notOpen) {
-        if (!store('realOpens') && s.opensAt) store('realOpens', s.opensAt);
-        step = step.then(function () { return API.call('saveSettings', { password: adminPw(), values: { opensAt: new Date(Date.now() - 1000).toISOString() } }); });
-      }
-      if (API.demo && ps.length < 3) step = step.then(function () { API.demoSeed(); });
-      step.then(function () { return API.call('draw', { password: adminPw() }); })
+      ensureDrawn(s, ps, true)
         .then(function () { return API.call('adminList', { password: adminPw() }); })
         .then(function (d) {
           var me = store('me'), target = null;
@@ -916,6 +980,7 @@
           location.hash = '#/test/as/' + encodeURIComponent(target.id);
         })
         .catch(function (e) { busy(b, false); showError('#sampleErr', e); });
+      });
     };
   }
 
@@ -955,11 +1020,13 @@
       };
     });
     if ($('#speedAgain')) $('#speedAgain').onclick = function () {
-      if (!confirm('Undo the draw? Everyone loses their current person, and names are drawn again when the 1-minute timer ends.')) return;
-      remember();
-      setDeadline(new Date(Date.now() + 60000).toISOString())
-        .then(function () { return API.call('reopen', { password: adminPw() }); })
-        .then(viewTest).catch(fail);
+      ask('Undo the draw? Everyone loses their current person, and names are drawn again when the 1-minute timer ends.', 'Undo the draw').then(function (ok) {
+        if (!ok) return;
+        remember();
+        setDeadline(new Date(Date.now() + 60000).toISOString())
+          .then(function () { return API.call('reopen', { password: adminPw() }); })
+          .then(viewTest).catch(fail);
+      });
     };
     if ($('#openNow')) $('#openNow').onclick = function () {
       if (!store('realOpens') && s.opensAt) store('realOpens', s.opensAt);
@@ -970,8 +1037,9 @@
     };
     if ($('#restoreDeadline')) $('#restoreDeadline').onclick = function () {
       var real = store('realDeadline');
-      if (Date.parse(real) < Date.now() && !confirm('That deadline has already passed, so wishlists will lock and names will be drawn. Continue?')) return;
-      setDeadline(real).then(function () { store('realDeadline', null); viewTest(); }).catch(fail);
+      (Date.parse(real) < Date.now() ? ask('That deadline has already passed, so wishlists will lock and names will be drawn.', 'Continue') : Promise.resolve(true)).then(function (ok) {
+        if (ok) setDeadline(real).then(function () { store('realDeadline', null); viewTest(); }).catch(fail);
+      });
     };
   }
 
@@ -1009,6 +1077,7 @@
           (!drawn && ps.length >= 3 ? '<button class="btn ghost small" id="testDraw">Draw names now</button>' : '') +
           '<a class="btn ghost small" href="#/board">Party board</a></div>' +
         sampleCard(ps) +
+        partyCard(drawn, s) +
         speedCard(s, drawn) +
         GUIDE(s) +
         '<div class="page-head" style="margin-top:28px"><h2 style="margin:0">Everyone</h2></div>' +
@@ -1017,14 +1086,17 @@
         '<div class="tgrid">' + cards + '</div>'
       );
       var doDraw = function (msg) {
-        if (msg && !confirm(msg)) return;
-        API.call('draw', { password: adminPw() }).then(function () { confetti(120); viewTest(); })
-          .catch(function (e) { alert(e.message); });
+        ask(msg, 'Draw names').then(function (ok) {
+          if (!ok) return;
+          API.call('draw', { password: adminPw() }).then(function () { confetti(120); viewTest(); })
+            .catch(function (e) { tell(e.message); });
+        });
       };
       if ($('#redraw')) $('#redraw').onclick = function () { doDraw('Draw again? Everyone gets a new person, number and animal name. Only do this while testing, before anyone has shopped.'); };
       if ($('#testDraw')) $('#testDraw').onclick = function () { doDraw('Draw names now? Sign-ups close and everyone gets their person.'); };
       bindSpeed(s);
       bindSample(s, ps);
+      bindParty(s, ps);
       if ($('#preview')) $('#preview').onclick = function () {
         var list = ps.filter(function (p) { return p.mystery; }).map(function (p) {
           var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
