@@ -51,7 +51,7 @@
   // ---------- confetti ----------
   var confetti = (function () {
     var cv = document.getElementById('confetti'), ctx = cv.getContext('2d'), parts = [], raf = 0;
-    var colors = ['#c8243c', '#e8b64c', '#15513d', '#ffffff', '#f6e2ae'];
+    var colors = ['#f2e8d4', '#eca7c6', '#6f9e89', '#2d4833', '#ffffff'];
     function size() { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; }
     addEventListener('resize', size); size();
     function tick() {
@@ -90,39 +90,29 @@
   }
 
   // =====================================================================
-  // HOME
+  // HOME — one poster, one button
   // =====================================================================
+  var BURST = '<svg class="burst" viewBox="0 0 400 400" aria-hidden="true"><path fill="#6f9e89" d="M200 0 214 158 330 70 238 186 400 200 238 214 330 330 214 242 200 400 186 242 70 330 162 214 0 200 162 186 70 70 186 158Z"/></svg>';
+  var SPARK = function (cls) { return '<svg class="sparkle ' + cls + '" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 0C21 13 27 19 40 20 27 21 21 27 20 40 19 27 13 21 0 20 13 19 19 13 20 0Z"/></svg>'; };
+  var STAR6 = '<svg class="star6" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 2 24 13 36 11 28 20 36 29 24 27 20 38 16 27 4 29 12 20 4 11 16 13Z"/></svg>';
+
   function viewHome() {
     loading();
     loadInfo().then(function (d) {
-      var phaseLine = d.phase === 'signup'
-        ? '<a class="btn block" href="#/join">Join &amp; add my wishlist</a><a class="btn secondary block" href="#/me">I already joined — check my status</a>'
+      var facts = '<span>Your budget is ' + Number(d.budget || 0).toLocaleString('en-PH') + ' pesos</span>' +
+        '<span>Christmas party is on ' + (d.partyDate ? esc(d.partyDate) : 'a date to be announced') + '</span>';
+      var cta = d.phase === 'signup'
+        ? '<a class="btn cream block" href="#/join">Add my wishlist</a><a class="textlink" href="#/me">Already joined? Log in</a>'
         : d.phase === 'drawn'
-          ? '<a class="btn block" href="#/me">See who I\'m shopping for</a><a class="btn secondary block" href="#/join">Edit my wishlist</a>'
-          : '<a class="btn gold block" href="#/reveal">See the big reveal ✨</a><a class="btn secondary block" href="#/me">My page</a>';
+          ? '<a class="btn cream block" href="#/me">See who I\'m shopping for</a>'
+          : '<a class="btn cream block" href="#/reveal">Watch the reveal</a><a class="textlink" href="#/me">My page</a>';
       render(
-        '<section class="hero">' +
-          '<span class="kicker">Christmas party · gift game</span>' +
-          '<h1>Who is <em>Mystery&nbsp;Person</em>&nbsp;#?</h1>' +
-          '<p>Write down what you\'d love to get. Someone will secretly shop for you — and nobody knows whose bag is whose until the very end.</p>' +
-          '<div class="chips">' +
-            '<span class="chip">Budget <b>' + peso(d.budget) + '</b></span>' +
-            (d.deadline ? '<span class="chip">Wishlists by <b>' + esc(d.deadline) + '</b></span>' : '') +
-            (d.partyDate ? '<span class="chip">Party <b>' + esc(d.partyDate) + '</b></span>' : '') +
-            '<span class="chip"><b>' + d.count + '</b> joined</span>' +
-          '</div>' +
-          '<div class="cta">' + phaseLine + '</div>' +
-        '</section>' +
-        '<div class="card" style="margin-top:30px">' +
-          '<h2>How it works</h2>' +
-          '<ol class="steps">' +
-            '<li><div><b>Make your wishlist</b><p>Sign up with your name, a 4-digit PIN, and 3–5 gifts you\'d actually want (under ' + peso(d.budget) + ').</p></div></li>' +
-            '<li><div><b>Get your Mystery Person</b><p>After the draw, log in to see the wishlist of the Mystery Person # you\'re shopping for. You won\'t know who they are — and nobody knows your number either.</p></div></li>' +
-            '<li><div><b>Bag it &amp; label it</b><p>Put their gift in a bag and label it only with their number, e.g. "Mystery Person #4". No names!</p></div></li>' +
-            '<li><div><b>Play for the bags</b><p>At the party, all bags go on one table. First to answer 3 trivia questions right picks a bag — or steals one.</p></div></li>' +
-            '<li><div><b>Open, reveal, trade</b><p>Everyone opens together, then the big screen reveals who each Mystery Person was. Trade your way back to your wishlist!</p></div></li>' +
-          '</ol>' +
-        '</div>'
+        '<section class="poster">' + BURST + SPARK('s1') + SPARK('s2') + SPARK('s3') +
+          '<h1 class="poster-type"><span class="script">Mystery</span><span class="big">Kris Kringle</span></h1>' +
+          '<p class="poster-sub">' + esc(d.eventName) + '</p>' +
+          '<div class="poster-facts">' + facts + '</div>' +
+          '<div class="poster-cta">' + cta + '</div>' +
+        '</section>'
       );
     }).catch(function (e) { render('<div class="error">' + esc(e.message) + '</div>'); });
   }
@@ -130,41 +120,55 @@
   // =====================================================================
   // JOIN / EDIT WISHLIST
   // =====================================================================
+  function wishRow(w, i) {
+    w = w || {};
+    return '<div class="wish-row">' +
+      '<div class="line"><input name="item" maxlength="140" aria-label="Gift idea ' + (i + 1) + '" placeholder="' + ['A gift you\'d love', 'Another one', 'One more'][i] + '" value="' + esc(w.item) + '">' +
+      '<button type="button" class="link-toggle" aria-label="Add a link">' + (w.link ? 'Link ✓' : '+ Link') + '</button></div>' +
+      '<input name="link" class="link-input" type="url" inputmode="url" placeholder="Paste a Shopee or Lazada link" value="' + esc(w.link) + '"' + (w.link ? '' : ' hidden') + '>' +
+      '</div>';
+  }
+
   function viewJoin() {
     var sess = store('me');
     var prefill = (sess && sess.wishes) || [];
     loading();
     loadInfo().then(function (d) {
       var editing = !!(sess && sess.wishes);
-      if (d.phase === 'revealed') { render('<div class="card center"><h2>The party is over 🎄</h2><p class="muted">Wishlists are locked now.</p><a class="btn" href="#/reveal">See the reveal</a></div>'); return; }
+      if (d.phase === 'revealed') { render('<div class="card center"><h2>Wishlists are closed</h2><p class="muted">The party\'s done. Merry Christmas!</p><a class="btn" href="#/reveal">Watch the reveal</a></div>'); return; }
       if (d.phase === 'drawn' && !editing) {
-        render('<div class="card"><h2>Sign-ups are closed</h2><p class="muted">Names have already been drawn. If you\'re already in, log in to edit your wishlist. If you missed it, message the organizer — they can reopen sign-ups.</p><a class="btn" href="#/me">Log in</a></div>');
+        render('<div class="card"><h2>Sign-ups are closed</h2><p class="muted">Names have been drawn. If you missed it, message the organizer.</p><a class="btn" href="#/me">Log in</a></div>');
         return;
       }
-      var rows = '';
-      for (var i = 0; i < 5; i++) {
-        var w = prefill[i] || {};
-        rows += '<div class="wish-row"><span class="num">' + (i + 1) + '</span><div class="fields">' +
-          '<input name="item" maxlength="140" placeholder="' + (i < 3 ? 'Gift idea (required)' : 'Gift idea (optional)') + '" value="' + esc(w.item) + '">' +
-          '<input name="link" class="link-input" type="url" inputmode="url" placeholder="Shopee / Lazada link (optional)" value="' + esc(w.link) + '">' +
-          '</div></div>';
-      }
+      var n = Math.max(3, prefill.length), rows = '';
+      for (var i = 0; i < n; i++) rows += wishRow(prefill[i], Math.min(i, 2));
       render(
-        '<div class="card">' +
-          '<h2>' + (editing ? 'Edit my wishlist' : 'Join the game') + '</h2>' +
-          '<p class="muted">Only the organizer sees your name next to your wishlist. Your Secret Santa only sees a Mystery Person number.</p>' +
+        '<div class="card pop">' +
+          '<h2>' + (editing ? 'Your wishlist' : 'Join the game') + '</h2>' +
           '<form id="joinForm" novalidate>' +
-            '<label for="jName">Your name <span class="hint">— the name people at the party know you by</span></label>' +
+            '<label for="jName">Your name</label>' +
             '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '"' + (editing ? ' readonly' : '') + '>' +
-            '<label for="jPin">4-digit PIN <span class="hint">— you\'ll need this to see who you\'re shopping for. Don\'t forget it!</span></label>' +
-            '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" pattern="\\d{4}" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
-            '<label>Your wishlist <span class="hint">— 3 to 5 things, each around ' + peso(d.budget) + ' or less. Be specific (color, size, brand)!</span></label>' +
-            rows +
+            '<label for="jPin">Pick a 4-digit PIN <span class="hint">to log in later</span></label>' +
+            '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
+            '<label>Gift ideas <span class="hint">3 to 5, around ' + peso(d.budget) + ' each</span></label>' +
+            '<div id="wishes">' + rows + '</div>' +
+            '<button type="button" class="add-wish" id="addWish"' + (n >= 5 ? ' hidden' : '') + '>+ Add another</button>' +
             '<div id="jErr" hidden></div>' +
-            '<button class="btn block" style="margin-top:16px" type="submit">' + (editing ? 'Save my wishlist' : 'Join the game 🎁') + '</button>' +
+            '<button class="btn block" style="margin-top:20px" type="submit">' + (editing ? 'Save wishlist' : 'Join') + '</button>' +
           '</form>' +
         '</div>'
       );
+      var wl = $('#wishes');
+      wl.addEventListener('click', function (e) {
+        var t = e.target.closest('.link-toggle'); if (!t) return;
+        var inp = t.closest('.wish-row').querySelector('.link-input');
+        inp.hidden = !inp.hidden; if (!inp.hidden) inp.focus();
+      });
+      $('#addWish').onclick = function () {
+        wl.insertAdjacentHTML('beforeend', wishRow({}, 2));
+        wl.lastElementChild.querySelector('input').focus();
+        if (wl.children.length >= 5) this.hidden = true;
+      };
       $('#joinForm').addEventListener('submit', function (e) {
         e.preventDefault();
         var btn = e.target.querySelector('button[type=submit]');
@@ -178,12 +182,11 @@
           confetti(90);
           render(
             '<div class="card center pop">' +
-              '<div style="font-size:3.4rem">🎁</div>' +
-              '<h2>' + (r.updated ? 'Wishlist saved!' : 'You\'re in, ' + esc(r.name) + '!') + '</h2>' +
+              '<h2>' + (r.updated ? 'Saved' : 'You\'re in, ' + esc(r.name)) + '</h2>' +
               '<p class="muted">' + (info && info.phase === 'drawn'
-                ? 'Your Secret Santa will see your updated list.'
-                : 'Once the organizer draws names, come back and log in with your name and PIN to see which Mystery Person you\'re shopping for.') + '</p>' +
-              '<div class="cta"><a class="btn" href="#/me">Go to my page</a><a class="btn ghost" href="#/">Back home</a></div>' +
+                ? 'Your Secret Santa will see the new list.'
+                : 'After names are drawn' + (info && info.deadline ? ' on ' + esc(info.deadline) : '') + ', log in to see who you\'re shopping for.') + '</p>' +
+              '<a class="btn" href="#/me">Go to my page</a>' +
             '</div>'
           );
         }).catch(function (err) { busy(btn, false); showError('#jErr', err); });
@@ -192,7 +195,7 @@
   }
 
   // =====================================================================
-  // MY MYSTERY (log in with name + PIN)
+  // MY PAGE (log in with name + PIN)
   // =====================================================================
   function viewMe() {
     var sess = store('me');
@@ -203,16 +206,15 @@
 
   function meLogin() {
     render(
-      '<div class="card">' +
-        '<h2>My Mystery</h2>' +
-        '<p class="muted">Log in with the name and PIN you used when you joined.</p>' +
+      '<div class="card pop">' +
+        '<h2>Log in</h2>' +
         '<form id="meForm" novalidate>' +
           '<label for="mName">Your name</label><input id="mName" maxlength="60" autocomplete="name">' +
-          '<label for="mPin">4-digit PIN</label><input id="mPin" class="pin-input" inputmode="numeric" maxlength="4" type="password" autocomplete="off">' +
+          '<label for="mPin">Your PIN</label><input id="mPin" class="pin-input" inputmode="numeric" maxlength="4" type="password" autocomplete="off">' +
           '<div id="mErr" hidden></div>' +
-          '<button class="btn block" style="margin-top:16px" type="submit">Log in</button>' +
+          '<button class="btn block" style="margin-top:20px" type="submit">Log in</button>' +
         '</form>' +
-        '<p class="small muted center" style="margin-top:16px">Not signed up yet? <a href="#/join">Join here</a>. Forgot your PIN? Ask the organizer to reset it.</p>' +
+        '<p class="small muted center" style="margin:16px 0 0">New here? <a href="#/join">Add your wishlist</a>. Forgot your PIN? Ask the organizer.</p>' +
       '</div>'
     );
     $('#meForm').addEventListener('submit', function (e) {
@@ -231,32 +233,29 @@
     var test = !!d.testMode;
     if (!test) { var sess = store('me') || {}; store('me', { name: d.name, pin: sess.pin, wishes: d.wishes }); }
     var s = d.settings, html = '';
-    if (test) html += '<div class="test-bar">🧪 <b>Test mode</b> — this is exactly what <b>' + esc(d.name) + '</b> sees' +
-      (d.myMystery ? ' (they are secretly <b>#' + d.myMystery + ' ' + esc(d.myAlias) + '</b>)' : '') + '.</div>';
-    html += '<div class="row" style="margin-bottom:14px"><h2 style="margin:0">Hi, ' + esc(d.name) + ' 👋</h2><span class="spacer"></span>' +
-      (test ? '<a class="btn secondary small" href="#/test">← Back to everyone</a>' : '<button class="btn ghost small" id="logout">Log out</button>') + '</div>';
+    if (test) html += '<div class="test-bar">Test mode: this is exactly what <b>' + esc(d.name) + '</b> sees' +
+      (d.myMystery ? '. They\'re secretly #' + d.myMystery + ', ' + esc(d.myAlias) : '') + '. <a href="#/test">Back to everyone</a></div>';
 
     if (s.phase === 'signup') {
-      html += '<div class="card pine"><h3>⏳ Names haven\'t been drawn yet</h3><p style="margin:0">' +
-        s.count + ' people have joined so far. Once the organizer draws names, come back here to see which Mystery Person you\'re shopping for' +
-        (s.deadline ? ' (sign-ups close ' + esc(s.deadline) + ')' : '') + '.</p></div>';
+      html += '<div class="card pop"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
+        '<p class="muted">You\'re in. Names are drawn ' + (s.deadline ? 'after ' + esc(s.deadline) : 'soon') + '. Check back here to see who you\'re shopping for.</p></div>';
     } else if (d.shoppingFor) {
-      html += '<div class="ticket pop"><div class="label">You\'re shopping for</div>' +
-        '<div class="big">Mystery #' + d.shoppingFor.no + '</div>' +
-        (d.shoppingFor.alias ? '<div class="alias">a.k.a. ' + esc(d.shoppingFor.alias) + '</div>' : '') +
-        '<div class="sub">Budget ' + peso(s.budget) + (s.partyDate ? ' · Bring it on ' + esc(s.partyDate) : '') + '</div></div>' +
+      html += '<div class="ticket pop">' + STAR6 + '<div class="label">You\'re shopping for</div>' +
+        '<div class="big">#' + d.shoppingFor.no + '</div>' +
+        (d.shoppingFor.alias ? '<div class="alias">' + esc(d.shoppingFor.alias) + '</div>' : '') +
+        '<div class="sub">' + peso(s.budget) + (s.partyDate ? ', bring it on ' + esc(s.partyDate) : '') + '</div></div>' +
         '<div class="card"><h3>Their wishlist</h3>' + wishListHTML(d.shoppingFor.wishes) +
-        '<div class="notice" style="margin-top:16px"><b>Label your bag:</b> "Mystery #' + d.shoppingFor.no + (d.shoppingFor.alias ? ' — ' + esc(d.shoppingFor.alias) : '') + '". ' +
-        'Don\'t write your name or theirs anywhere on it. Keep it secret — even the number!</div></div>';
+        '<p class="small muted" style="margin:16px 0 0">Label the bag "#' + d.shoppingFor.no + (d.shoppingFor.alias ? ' ' + esc(d.shoppingFor.alias) : '') + '". No names, and keep it secret.</p></div>';
     }
     if (s.phase === 'revealed') {
-      html += '<div class="card center"><h3>The reveal is live ✨</h3>' +
-        (d.myMystery && s.phase === 'revealed' ? '<p>You were <b>Mystery #' + d.myMystery + (d.myAlias ? ' — ' + esc(d.myAlias) : '') + '</b>. Find whoever has bag #' + d.myMystery + ' and start trading!</p>' : '') +
-        '<a class="btn gold" href="#/reveal">Watch the reveal</a></div>';
+      html += '<div class="card center"><h2>The reveal is on</h2>' +
+        (d.myMystery ? '<p>You were #' + d.myMystery + (d.myAlias ? ', ' + esc(d.myAlias) : '') + '. Find bag #' + d.myMystery + ' and start trading.</p>' : '') +
+        '<a class="btn" href="#/reveal">Watch the reveal</a></div>';
     }
     html += '<div class="card"><div class="row"><h3 style="margin:0">My wishlist</h3><span class="spacer"></span>' +
       (s.phase !== 'revealed' && !test ? '<a class="btn secondary small" href="#/join">Edit</a>' : '') + '</div>' +
-      '<div style="margin-top:12px">' + wishListHTML(d.wishes) + '</div></div>';
+      '<div style="margin-top:6px">' + wishListHTML(d.wishes) + '</div></div>' +
+      (test ? '' : '<p class="center"><button class="btn ghost small" id="logout" style="color:var(--cream)">Log out</button></p>');
     render(html);
     if (!test && d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
     if ($('#logout')) $('#logout').onclick = function () { store('me', null); meLogin(); };
@@ -301,47 +300,41 @@
 
     var actions = '';
     if (s.phase === 'signup') {
-      actions = '<p class="muted">When everyone has joined, draw names. This gives everyone a secret Mystery # and someone to shop for, and closes sign-ups.</p>' +
-        '<button class="btn" id="draw"' + (ps.length < 3 ? ' disabled' : '') + '>🎲 Draw names (' + ps.length + ' people)</button>';
+      actions = '<p class="muted">When everyone\'s in, draw names. Sign-ups close and everyone gets someone to shop for.</p>' +
+        '<button class="btn" id="draw"' + (ps.length < 3 ? ' disabled' : '') + '>Draw names</button>';
     } else if (s.phase === 'drawn') {
-      actions = '<p class="muted">Everyone can now log in to see who they\'re shopping for. On party day, open the Party board on the big screen. When the gifts are opened, start the reveal.</p>' +
-        '<div class="row"><a class="btn gold" href="#/board">Open party board</a><button class="btn" id="revealOn">✨ Start the reveal</button>' +
-        '<button class="btn ghost small" id="reopen">Reopen sign-ups (clears the draw)</button></div>';
+      actions = '<p class="muted">Party day: put the party board on the TV. Once every gift is open, start the reveal.</p>' +
+        '<div class="row"><a class="btn" href="#/board">Open party board</a><button class="btn secondary" id="revealOn">Start the reveal</button></div>' +
+        '<p style="margin:14px 0 0"><button class="btn ghost small" id="reopen">Undo the draw and reopen sign-ups</button></p>';
     } else {
-      actions = '<p class="muted">The reveal is live. Put the Reveal page on the big screen.</p>' +
-        '<div class="row"><a class="btn gold" href="#/reveal">Open reveal screen</a><button class="btn ghost small" id="revealOff">Hide the reveal again</button></div>';
+      actions = '<p class="muted">The reveal is live for everyone.</p>' +
+        '<div class="row"><a class="btn" href="#/reveal">Open the reveal</a><button class="btn ghost small" id="revealOff">Hide the reveal</button></div>';
     }
 
     var rows = ps.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p) {
-      return '<tr><td><b>' + esc(p.name) + '</b><div class="wish-mini">' + p.wishes.map(function (w) { return esc(w.item); }).join(' · ') + '</div></td>' +
-        (showSecrets ? '<td>' + (p.mystery ? '<span class="tag">#' + p.mystery + '</span><div class="wish-mini">' + esc(p.alias) + '</div>' : '—') + '</td>' +
-          '<td>' + (p.shopsFor ? '<span class="tag berry">#' + p.shopsFor + '</span> ' + esc(p.shopsForName) : '—') + '</td>' : '') +
+      return '<tr><td><b>' + esc(p.name) + '</b><div class="wish-mini">' + p.wishes.length + ' gift ideas</div></td>' +
         '<td style="white-space:nowrap"><button class="btn ghost small" data-pin="' + esc(p.id) + '" data-name="' + esc(p.name) + '">Reset PIN</button>' +
         (s.phase === 'signup' ? '<button class="btn ghost small" data-rm="' + esc(p.id) + '" data-name="' + esc(p.name) + '">Remove</button>' : '') + '</td></tr>';
     }).join('');
 
     render(
-      '<div class="row" style="margin-bottom:16px"><h1 style="margin:0;font-size:2rem">Organizer</h1><span class="phase-pill">' + phaseText + '</span><span class="spacer"></span>' +
-        '<button class="btn ghost small" id="aOut">Lock</button></div>' +
+      '<div class="page-head"><h1>Organizer</h1><span class="phase-pill">' + phaseText + '</span><span class="spacer"></span>' +
+        '<a class="btn ghost small" href="#/test">Test mode &amp; guide</a><button class="btn ghost small" id="aOut">Lock</button></div>' +
       '<div class="stats">' +
-        '<div class="stat"><div class="n">' + ps.length + '</div><div class="l">people joined</div></div>' +
+        '<div class="stat"><div class="n">' + ps.length + '</div><div class="l">joined</div></div>' +
         '<div class="stat"><div class="n">' + peso(s.budget) + '</div><div class="l">budget</div></div>' +
-        '<div class="stat"><div class="n">' + (s.deadline ? esc(s.deadline) : '—') + '</div><div class="l">sign-up deadline</div></div>' +
-        '<div class="stat"><div class="n">' + (s.partyDate ? esc(s.partyDate) : '—') + '</div><div class="l">party day</div></div>' +
+        '<div class="stat"><div class="n">' + (s.deadline ? esc(s.deadline) : 'Not set') + '</div><div class="l">wishlists due</div></div>' +
+        '<div class="stat"><div class="n">' + (s.partyDate ? esc(s.partyDate) : 'Not set') + '</div><div class="l">party</div></div>' +
       '</div>' +
-      '<div class="card"><h3>Next step</h3>' + actions + '<div id="actErr" hidden></div></div>' +
-      '<div class="card row"><div><h3 style="margin:0">🧪 Test mode</h3><p class="small muted" style="margin:4px 0 0">See everyone at once, open anyone\'s page without their PIN, and preview the reveal privately.</p></div>' +
-        '<span class="spacer"></span><a class="btn secondary" href="#/test">Open test mode</a></div>' +
-      '<div class="card"><div class="row"><h3 style="margin:0">Players</h3><span class="spacer"></span>' +
-        '<button class="btn secondary small" id="secrets">' + (showSecrets ? '🙈 Hide secrets' : '👀 Show who\'s who') + '</button></div>' +
-        (showSecrets ? '<p class="small muted">Careful — don\'t show this on a projector!</p>' : '<p class="small muted">Mystery numbers and who-shops-for-whom are hidden so you can keep this screen open safely.</p>') +
-        (ps.length ? '<div class="table-wrap"><table><thead><tr><th>Name &amp; wishlist</th>' + (showSecrets ? '<th>Mystery #</th><th>Shops for</th>' : '') + '<th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-          : '<p class="muted">Nobody yet. Share the link below!</p>') +
+      '<div class="card"><h2>Next</h2>' + actions + '<div id="actErr" hidden></div></div>' +
+      '<div class="card"><h3>People</h3>' +
+        (ps.length ? '<div class="table-wrap"><table><tbody>' + rows + '</tbody></table></div>'
+          : '<p class="muted">No one yet. Send the invite below.</p>') +
         (API.demo && s.phase === 'signup' ? '<button class="btn secondary small" id="seed" style="margin-top:12px">Add 8 sample people (demo)</button>' : '') +
       '</div>' +
       '<div class="card"><h3>Invite message</h3>' +
-        '<textarea id="invite" rows="5" style="width:100%;font:inherit;padding:12px;border-radius:12px;border:1.5px solid var(--line)">🎁 ' + esc(s.eventName) + '!\n' +
-        'Add your 3–5 wishlist items' + (s.deadline ? ' by ' + esc(s.deadline) : '') + ' — budget ' + peso(s.budget) + '. It\'s all anonymous 🤫\n' + esc(siteUrl) + '</textarea>' +
+        '<textarea id="invite" rows="4">' + esc(s.eventName) + ': Mystery Kris Kringle 🎁\n' +
+        'Add 3–5 gift ideas' + (s.deadline ? ' by ' + esc(s.deadline) : '') + '. ' + peso(s.budget) + ' budget, all anonymous.\n' + esc(siteUrl) + '</textarea>' +
         '<button class="btn secondary small" id="copyInvite" style="margin-top:8px">Copy</button></div>' +
       '<details class="card"><summary>Event settings</summary>' +
         '<form id="setForm"><div class="grid2">' +
@@ -350,7 +343,7 @@
           '<div><label>Sign-up deadline</label><input name="deadline" placeholder="e.g. Dec 1" value="' + esc(s.deadline) + '"></div>' +
           '<div><label>Party date</label><input name="partyDate" placeholder="e.g. Dec 19" value="' + esc(s.partyDate) + '"></div>' +
         '</div><button class="btn small" style="margin-top:14px">Save settings</button><div id="setErr" hidden></div></form>' +
-        (API.demo ? '<hr style="border:none;border-top:1px solid var(--line);margin:18px 0"><button class="btn ghost small" id="demoReset">Erase all demo data</button>' : '') +
+        (API.demo ? '<hr style="border:none;border-top:1px dashed #d4c4a4;margin:18px 0"><button class="btn ghost small" id="demoReset">Erase all demo data</button>' : '') +
       '</details>'
     );
 
@@ -367,7 +360,6 @@
     on('reopen', function (b) { act('reopen', {}, 'Reopen sign-ups? This ERASES the current draw — everyone will get a new Mystery Person when you draw again. Only do this if nobody has shopped yet.', b); });
     on('revealOn', function (b) { act('setPhase', { phase: 'revealed' }, 'Start the reveal? Everyone will be able to see who each Mystery Person was.', b); });
     on('revealOff', function (b) { act('setPhase', { phase: 'drawn' }, null, b); });
-    on('secrets', function () { showSecrets = !showSecrets; renderOrganizer(d); });
     on('seed', function () { API.demoSeed(); viewOrganizer(); });
     on('demoReset', function () { if (confirm('Erase all demo data?')) { API.demoReset(); store('me', null); viewOrganizer(); } });
     on('copyInvite', function (b) {
@@ -678,10 +670,10 @@
     var render = function (html) { app.innerHTML = banner + html; };
     function show() {
       if (idx < 0) {
-        render('<div class="reveal-stage"><span class="phase-pill">The big reveal</span>' +
-          '<h1 style="margin-top:16px">Who were the<br><em style="color:var(--berry)">Mystery People?</em></h1>' +
-          '<p class="muted">' + list.length + ' mystery people. Let\'s find out.</p>' +
-          '<div class="row" style="justify-content:center"><button class="btn gold" id="go">Start the reveal →</button><button class="btn ghost" id="all">Show everyone at once</button></div></div>');
+        render('<div class="reveal-stage poster">' + BURST + SPARK('s1') + SPARK('s2') +
+          '<h1 class="poster-type"><span class="script">Who was</span><span class="big">Who?</span></h1>' +
+          '<p class="poster-sub">' + list.length + ' Mystery People</p>' +
+          '<div class="poster-cta" style="margin-top:18px"><button class="btn cream block" id="go">Start the reveal</button><button class="btn ghost" id="all">Show everyone</button></div></div>');
         $('#go').onclick = next; $('#all').onclick = summary;
         return;
       }
@@ -691,23 +683,23 @@
       render('<div class="reveal-stage">' +
         '<div class="dots">' + dots + '</div>' +
         '<div class="flip' + (flipped ? ' flipped' : '') + '" id="card"><div class="flip-inner">' +
-          '<div class="face front"><div class="lbl">Mystery #' + r.no + '</div><div class="num">' + esc(r.alias || ('Mystery Person #' + r.no)) + '</div><div class="q-mark">?</div>' +
-            '<div class="small" style="opacity:.8;margin-top:10px">Tap to reveal</div></div>' +
+          '<div class="face front">' + STAR6 + '<div class="lbl">#' + r.no + '</div><div class="num">' + esc(r.alias || ('Mystery Person #' + r.no)) + '</div><div class="q-mark">?</div>' +
+            '<div class="small" style="color:var(--cream);opacity:.7;margin-top:18px">Tap to reveal</div></div>' +
           '<div class="face back"><div class="was">#' + r.no + ' ' + esc(r.alias) + ' was…</div><div class="name">' + esc(r.name) + '</div>' +
             '<div class="meta">' + (r.giver ? '<span>🎅 Gift from <b>' + esc(r.giver) + '</b></span>' : '') +
             (r.holder ? '<span>🎁 Bag is with <b>' + esc(r.holder) + '</b></span>' : '') + '</div>' +
             wishListHTML(r.wishes) + '</div>' +
         '</div></div>' +
         '<div class="row" style="justify-content:center"><button class="btn ghost" id="prev">← Back</button>' +
-          '<button class="btn' + (flipped ? ' gold' : '') + '" id="next">' + (flipped ? (idx === list.length - 1 ? 'See everyone →' : 'Next mystery →') : 'Reveal!') + '</button></div>' +
-        '<p class="small muted">Keyboard: space / → to continue, ← to go back</p></div>');
+          '<button class="btn cream" id="next">' + (flipped ? (idx === list.length - 1 ? 'See everyone' : 'Next') : 'Reveal') + '</button></div>' +
+        '<p class="small muted">Space bar to continue</p></div>');
       $('#card').onclick = next; $('#next').onclick = next; $('#prev').onclick = prev;
     }
     function next() {
       if (idx >= 0 && idx < list.length && !flipped) {
         flipped = true; $('#card').classList.add('flipped');
         setTimeout(function () { confetti(150); }, 450);
-        var b = $('#next'); b.textContent = idx === list.length - 1 ? 'See everyone →' : 'Next mystery →'; b.classList.add('gold');
+        var b = $('#next'); b.textContent = idx === list.length - 1 ? 'See everyone' : 'Next'; b.classList.add('cream');
         return;
       }
       idx++; flipped = false; show();
@@ -716,7 +708,7 @@
     function summary() {
       idx = list.length;
       render('<div class="reveal-stage" style="justify-content:flex-start">' +
-        '<h1>Merry Christmas! 🎄</h1><p class="muted">Now go find your bag and start trading!</p>' +
+        '<h1 class="poster-type" style="margin-bottom:6px"><span class="script">Merry</span><span class="big">Christmas</span></h1><p class="muted" style="margin-bottom:24px">Now find your own wishlist and start trading.</p>' +
         '<div class="summary">' + list.map(function (r) {
           return '<div class="s"><div class="small muted">#' + r.no + ' ' + esc(r.alias) + '</div><div class="t">' + esc(r.name) + '</div>' +
             '<div class="small muted">' + (r.giver ? 'Gift from ' + esc(r.giver) : '') + (r.holder ? ' · Bag with ' + esc(r.holder) : '') + '</div>' +
@@ -739,6 +731,42 @@
   // =====================================================================
   // TEST MODE (organizer only): see everyone, open anyone's page
   // =====================================================================
+  function GUIDE(s) {
+    var b = peso(s.budget);
+    return '<div class="guide-grid guide">' +
+      '<div class="card"><h3>The game</h3><ol>' +
+        '<li>Everyone adds 3–5 gift ideas around ' + b + ' and picks a 4-digit PIN.</li>' +
+        '<li>You draw names. Each person secretly becomes a numbered Mystery Person with a funny animal name, and is given another Mystery Person to shop for.</li>' +
+        '<li>Shoppers only see a number, an animal name and a wishlist. Never a real name.</li>' +
+        '<li>Each gift goes in a bag labeled with the number and animal name only.</li>' +
+        '<li>At the party, every bag goes on one table and people win bags with trivia.</li>' +
+        '<li>Everyone opens together, the reveal shows who each Mystery Person was, then people trade to get their own wishlist.</li>' +
+      '</ol></div>' +
+      '<div class="card"><h3>Party day rules</h3><ul>' +
+        '<li>Read a question from the party board. Tap + for whoever answers first.</li>' +
+        '<li>First to 3 correct picks a bag from the table, or steals someone else\'s.</li>' +
+        '<li>A bag locks after it\'s been stolen twice.</li>' +
+        '<li>Holding a bag means you sit out of trivia. If yours is stolen, you\'re back in.</li>' +
+        '<li>Scores reset after every pick. Undo fixes any mis-tap.</li>' +
+        '<li>Change any of this in the board\'s Rules button.</li>' +
+      '</ul></div>' +
+      '<div class="card"><h3>Your checklist</h3><ol>' +
+        '<li>Send the invite from the Organizer page.</li>' +
+        '<li>After the deadline, press Draw names.</li>' +
+        '<li>Remind everyone to log in and see who they\'re shopping for.</li>' +
+        '<li>Party day: open the party board on the TV and log in.</li>' +
+        '<li>When every bag has a home and is opened, press Start the reveal and put the reveal on the TV. Space bar flips each card.</li>' +
+      '</ol></div>' +
+      '<div class="card"><h3>Good to know</h3><ul>' +
+        '<li>Forgotten PIN: Organizer page, Reset PIN, then tell them privately.</li>' +
+        '<li>Late joiner: Undo the draw, add them, draw again. Only before anyone has shopped.</li>' +
+        '<li>Everything is saved in your Google Sheet. Don\'t share the Sheet; it shows who\'s who.</li>' +
+        '<li>Edit trivia questions in the Sheet\'s Trivia tab.</li>' +
+        '<li>Use Open as below to check what any person sees.</li>' +
+      '</ul></div>' +
+    '</div>';
+  }
+
   function viewTest() {
     app.classList.add('wide');
     if (!adminPw()) return adminLogin(viewTest);
@@ -765,11 +793,13 @@
         '</div>';
       }).join('');
       render(
-        '<div class="test-bar">🧪 <b>Test mode</b> — you\'re seeing everything. Don\'t put this on the projector!</div>' +
-        '<div class="row" style="margin-bottom:16px"><h1 style="margin:0;font-size:2rem">Everyone</h1><span class="phase-pill">' + s.phase + '</span><span class="spacer"></span>' +
-          '<a class="btn ghost small" href="#/organizer">← Organizer</a>' +
-          (drawn ? '<button class="btn secondary small" id="preview">Preview the reveal (just you)</button>' : '') +
-          '<a class="btn secondary small" href="#/board">Party board</a></div>' +
+        '<div class="test-bar">Test mode shows every secret. Keep it off the projector.</div>' +
+        '<div class="page-head"><h1>Test mode</h1><span class="spacer"></span>' +
+          '<a class="btn ghost small" href="#/organizer">Organizer</a>' +
+          (drawn ? '<button class="btn ghost small" id="preview">Preview the reveal</button>' : '') +
+          '<a class="btn ghost small" href="#/board">Party board</a></div>' +
+        GUIDE(s) +
+        '<div class="page-head" style="margin-top:28px"><h2 style="margin:0">Everyone</h2></div>' +
         (drawn ? '' : '<div class="notice">Names haven\'t been drawn yet, so nobody has a Mystery # or animal name. Draw names on the Organizer page to see the full picture.</div>') +
         (API.demo && !ps.length ? '<div class="notice">No one here yet — add sample people from the Organizer page.</div>' : '') +
         '<div class="tgrid">' + cards + '</div>'
@@ -804,7 +834,7 @@
   if (API.demo) {
     var bar = $('#demoBar');
     bar.hidden = false;
-    bar.innerHTML = '<b>Demo mode</b> — data is saved only in this browser. Organizer password: <b>demo</b>. Connect the Google Sheet to go live.';
+    bar.innerHTML = 'Demo mode. Organizer password: <b>demo</b>';
   }
   route();
 })();
