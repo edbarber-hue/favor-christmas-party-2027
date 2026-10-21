@@ -842,7 +842,7 @@
         '<p class="muted">The reveal starts after everyone opens their gifts. This page will update by itself.</p></div>');
     }
     function tryLoad() {
-      return API.call('reveal').then(function (d) { timers.forEach(clearInterval); timers = []; stage(d); return true; })
+      return API.call('reveal').then(function (d) { timers.forEach(clearInterval); timers = []; revealAllScreen(d.list, {}); return true; })
         .catch(function (e) { if (/peek/i.test(e.message)) { if (!$('.reveal-stage')) waiting(); return false; } render('<div class="error">' + esc(e.message) + '</div>'); return true; });
     }
     tryLoad().then(function (done) { if (!done) every(5000, tryLoad); });
@@ -1064,7 +1064,7 @@
           var giver = d.players.filter(function (x) { return x.shopsFor === p.mystery; })[0];
           return { no: p.mystery, alias: p.alias, name: p.name, giver: giver ? giver.name : '', wishes: p.wishes, holder: '' };
         }).sort(function (a, b) { return a.no - b.no; });
-        stage({ list: list, preview: true });
+        revealAllScreen(list, { back: '#/test', backLabel: 'Test mode', banner: '<div class="test-bar">Private preview: only you can see this. The real reveal stays locked until you start it.</div>' });
       });
     };
   }
@@ -1204,7 +1204,7 @@
           var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
           return { no: p.mystery, alias: p.alias, name: p.name, giver: giver ? giver.name : '', wishes: p.wishes, holder: '' };
         }).sort(function (a, b) { return a.no - b.no; });
-        stage({ list: list, preview: true });
+        location.hash = '#/summary';
       };
     }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewTest); } else render('<div class="error">' + esc(e.message) + '</div>'); });
   }
@@ -1212,42 +1212,46 @@
   // =====================================================================
   // SUMMARY: every alias on one screen, then reveal everyone at once
   // =====================================================================
+  // One grid for the final reveal: number + alias on the front, number + real name on the back.
+  // All tiles flip at the same moment.
+  function revealGridHTML(list, revealed) {
+    return '<div class="sum-grid' + (revealed ? ' revealed' : '') + '" id="sumGrid">' + list.map(function (r) {
+      return '<div class="sum-tile">' +
+        '<div class="sum-front"><div class="sum-no">#' + r.no + '</div><div class="sum-alias">' + esc(r.alias) + '</div></div>' +
+        '<div class="sum-back"><div class="sum-no red">#' + r.no + '</div><div class="sum-name">' + esc(r.name) + '</div></div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function revealAllScreen(list, opts) {
+    opts = opts || {};
+    render(
+      (opts.banner || '') +
+      '<div class="page-head"><h1>The Mystery People</h1><span class="spacer"></span>' +
+        (opts.back ? '<a class="btn ghost small" href="' + opts.back + '">' + esc(opts.backLabel || 'Back') + '</a>' : '') +
+        '<button class="btn cream" id="revealAll">' + (opts.revealed ? 'Hide names' : 'Reveal everyone') + '</button></div>' +
+      revealGridHTML(list, opts.revealed)
+    );
+    $('#revealAll').onclick = function () {
+      var g = $('#sumGrid'), on = !g.classList.contains('revealed');
+      g.classList.toggle('revealed', on);
+      this.textContent = on ? 'Hide names' : 'Reveal everyone';
+      if (on) { setTimeout(function () { confetti(240); }, 350); setTimeout(function () { confetti(180); }, 1100); }
+    };
+  }
+
+  // =====================================================================
+  // SUMMARY (organizer): every alias on one screen, reveal all at once
+  // =====================================================================
   function viewSummary() {
     if (!adminPw()) return adminLogin(viewSummary);
     loading();
     API.call('adminList', { password: adminPw() }).then(function (d) {
-      var ps = d.players, byNo = {};
-      ps.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p; });
-      var list = ps.filter(function (p) { return p.mystery; }).sort(function (a, b) { return a.mystery - b.mystery; });
+      var list = d.players.filter(function (p) { return p.mystery; })
+        .map(function (p) { return { no: p.mystery, alias: p.alias, name: p.name }; })
+        .sort(function (a, b) { return a.no - b.no; });
       if (!list.length) { render('<div class="card center"><h2>No aliases yet</h2><p class="muted">Aliases are handed out when names are drawn.</p><a class="btn" href="#/test">Go to test mode</a></div>'); return; }
-      var tiles = list.map(function (p, i) {
-        var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
-        return '<div class="sum-tile" style="--i:' + i + '">' +
-          '<div class="sum-front"><div class="sum-no">#' + p.mystery + '</div><div class="sum-alias">' + esc(p.alias) + '</div></div>' +
-          '<div class="sum-back"><div class="sum-alias-sm">#' + p.mystery + ' ' + esc(p.alias) + '</div><div class="sum-name">' + esc(p.name) + '</div>' +
-            (giver ? '<div class="sum-from">Gift from ' + esc(giver.name) + '</div>' : '') + '</div>' +
-        '</div>';
-      }).join('');
-      render(
-        '<div class="page-head"><h1>The Mystery People</h1><span class="spacer"></span>' +
-          '<a class="btn ghost small" href="#/test">Test mode</a>' +
-          '<button class="btn cream" id="revealAll">Reveal everyone</button></div>' +
-        '<div class="sum-grid" id="sumGrid">' + tiles + '</div>' +
-        '<p class="small center" style="opacity:.8;margin-top:22px">Want suspense? <a href="#" id="oneByOne">Reveal one at a time instead</a></p>'
-      );
-      $('#revealAll').onclick = function () {
-        var g = $('#sumGrid'), on = !g.classList.contains('revealed');
-        g.classList.toggle('revealed', on);
-        this.textContent = on ? 'Hide names' : 'Reveal everyone';
-        if (on) { confetti(220); setTimeout(function () { confetti(160); }, 900); }
-      };
-      $('#oneByOne').onclick = function (e) {
-        e.preventDefault();
-        stage({ list: list.map(function (p) {
-          var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
-          return { no: p.mystery, alias: p.alias, name: p.name, giver: giver ? giver.name : '', wishes: p.wishes, holder: '' };
-        }), preview: true });
-      };
+      revealAllScreen(list, { back: '#/test', backLabel: 'Test mode' });
     }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewSummary); } else render('<div class="error">' + esc(e.message) + '</div>'); });
   }
 
