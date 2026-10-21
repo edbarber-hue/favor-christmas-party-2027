@@ -433,6 +433,7 @@
     render(
       '<div class="page-head"><h1>Organizer</h1><span class="phase-pill">' + phaseText + '</span><span class="spacer"></span>' +
         '<a class="btn ghost small" href="#/test">Test mode &amp; guide</a><button class="btn ghost small" id="aOut">Lock</button></div>' +
+      '<div class="ticket sample" style="padding:52px 22px 28px"><div class="gate-q" style="margin:0 0 14px">Want to see what it looks like?</div><a class="btn pink" href="#/test">Try a sample draw</a></div>' +
       '<div class="stats">' +
         '<div class="stat"><div class="n">' + ps.length + '</div><div class="l">joined</div></div>' +
         '<div class="stat"><div class="n" style="font-size:1.3rem">' + (s.opensAt ? esc(fmtDeadline(s.opensAt)) : 'Now') + '</div><div class="l">sign-ups open' + (s.notOpen ? '' : 'ed') + '</div></div>' +
@@ -883,6 +884,41 @@
     '</div>';
   }
 
+  // ---- Test mode: one-tap sample run ----
+  function sampleCard(ps) {
+    var me = store('me');
+    var who = me && me.name ? me.name : (ps[0] ? ps[0].name : 'a sample person');
+    return '<div class="ticket sample">' +
+      '<div class="gate-q" style="margin-top:0">See it for yourself</div>' +
+      '<p style="color:var(--cream);opacity:.85;max-width:440px;margin:0 auto 18px">One tap draws names and shows you exactly what ' + esc(who.split(' ')[0]) + ' will see' +
+      (API.demo && ps.length < 3 ? ', adding sample people so there\'s someone to draw' : '') + '.</p>' +
+      '<button class="btn pink" id="sampleRun">Draw a name and show me</button>' +
+      '<div id="sampleErr" hidden></div></div>';
+  }
+
+  function bindSample(s, ps) {
+    var b = $('#sampleRun'); if (!b) return;
+    b.onclick = function () {
+      if (!API.demo && !confirm('This draws names for everyone on the real list. Only do this while testing. Continue?')) return;
+      busy(b, true, 'Drawing…');
+      var step = Promise.resolve();
+      if (s.notOpen) {
+        if (!store('realOpens') && s.opensAt) store('realOpens', s.opensAt);
+        step = step.then(function () { return API.call('saveSettings', { password: adminPw(), values: { opensAt: new Date(Date.now() - 1000).toISOString() } }); });
+      }
+      if (API.demo && ps.length < 3) step = step.then(function () { API.demoSeed(); });
+      step.then(function () { return API.call('draw', { password: adminPw() }); })
+        .then(function () { return API.call('adminList', { password: adminPw() }); })
+        .then(function (d) {
+          var me = store('me'), target = null;
+          d.players.forEach(function (p) { if (me && me.name && p.name.toLowerCase() === me.name.toLowerCase()) target = p; });
+          target = target || d.players[0];
+          location.hash = '#/test/as/' + encodeURIComponent(target.id);
+        })
+        .catch(function (e) { busy(b, false); showError('#sampleErr', e); });
+    };
+  }
+
   // ---- Test mode: speed up the countdown ----
   function speedCard(s, drawn) {
     var saved = store('realDeadline');
@@ -972,6 +1008,7 @@
           (drawn && s.phase === 'drawn' ? '<button class="btn ghost small" id="redraw">Draw again</button>' : '') +
           (!drawn && ps.length >= 3 ? '<button class="btn ghost small" id="testDraw">Draw names now</button>' : '') +
           '<a class="btn ghost small" href="#/board">Party board</a></div>' +
+        sampleCard(ps) +
         speedCard(s, drawn) +
         GUIDE(s) +
         '<div class="page-head" style="margin-top:28px"><h2 style="margin:0">Everyone</h2></div>' +
@@ -987,6 +1024,7 @@
       if ($('#redraw')) $('#redraw').onclick = function () { doDraw('Draw again? Everyone gets a new person, number and animal name. Only do this while testing, before anyone has shopped.'); };
       if ($('#testDraw')) $('#testDraw').onclick = function () { doDraw('Draw names now? Sign-ups close and everyone gets their person.'); };
       bindSpeed(s);
+      bindSample(s, ps);
       if ($('#preview')) $('#preview').onclick = function () {
         var list = ps.filter(function (p) { return p.mystery; }).map(function (p) {
           var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];

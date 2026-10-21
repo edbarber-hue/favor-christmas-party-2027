@@ -354,3 +354,5 @@ details summary { cursor: pointer; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .ticket.opening { animation: none; } }
 @media (max-width: 420px) { .brand { font-size: .82rem; gap: 8px; } .brand-logo { width: 28px; } .nav a { padding: 7px 12px; font-size: .88rem; } }
 .remind-sub { font-family: var(--script); font-size: 2rem; line-height: 1; color: var(--red); margin: -6px 0 12px; }
+.ticket.sample { padding: 56px 22px 30px; }
+.ticket.sample .error { text-align: left; }
