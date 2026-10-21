@@ -406,3 +406,17 @@ details summary { cursor: pointer; font-weight: 700; }
 @media (max-width: 860px) { .keeper { grid-template-columns: 1fr; } }
 .keeper > div > h3 { color: var(--cream); }
 .board .trivia-card .q { font-size: clamp(1.5rem, 2.8vw, 2.4rem); }
+
+/* ---------- Reveal intro & next steps ---------- */
+.gate-spiel { color: var(--cream); opacity: .88; max-width: 420px; margin: -8px auto 22px; font-size: .97rem; }
+.steps-head { text-align: center; margin-bottom: 6px; }
+.steps-head h2 { margin: 10px 0 0; }
+.next-steps { counter-reset: st; list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 14px; }
+.next-steps li { counter-increment: st; position: relative; padding-left: 44px; line-height: 1.5; }
+.next-steps li::before { content: counter(st); position: absolute; left: 0; top: -2px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%;
+  background: var(--pine); color: var(--pink); font-weight: 900; font-size: .95rem; }
+.next-steps b { display: block; }
+.effort { margin-top: 8px; background: var(--red); color: var(--cream); font-weight: 750; border-radius: 4px; padding: 10px 12px; }
+.important { display: inline-block; margin-top: 4px; background: var(--pink); color: var(--pine-deep); font-weight: 800; border-radius: 3px; padding: 1px 8px; }
+.lbl-chip { display: inline-block; background: #fff; border: 1.5px dashed var(--red); border-radius: 4px; padding: 1px 8px; font-weight: 700; color: var(--red); }
+.spiel { margin: 20px 0 18px; padding: 14px 16px; border-left: 4px solid var(--sage); background: #e4ecdf; border-radius: 4px; color: var(--pine-deep); line-height: 1.55; }

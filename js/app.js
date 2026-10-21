@@ -321,22 +321,22 @@
       html += '<div class="ticket gate pop">' + KNIT.stockings(5) +
         '<div class="label">Names have been drawn</div>' +
         '<div class="gate-q">Want to see who you got?</div>' +
-        '<button class="btn pink" id="openGift">Show me</button></div>';
+        '<p class="gate-spiel">You\'re about to meet your Mystery Person. You\'ll see their secret alias and what they\'re asking for, but not their name. Who they really are stays a mystery until party day.</p>' +
+        '<button class="btn pink" id="openGift">Reveal what they\'re asking for</button></div>';
       render(html);
       $('#openGift').onclick = function () {
         if (test) d._opened = true; else store('opened-' + d.name, 1);
         var t = $('.ticket'); t.classList.add('opening');
-        setTimeout(function () { meDashboard(d); confetti(170); }, 650);
+        setTimeout(function () { d._justOpened = true; meDashboard(d); confetti(170); }, 650);
       };
       return;
     } else if (d.shoppingFor) {
       html += '<div class="ticket pop">' + KNIT.band({ fg: '#eca7c6', height: 34 }) +
-        '<div class="label">You got</div>' +
+        '<div class="label">You have Mystery Person #' + d.shoppingFor.no + '</div>' +
         '<div class="knit-name">' + knitLines(d.shoppingFor.alias || ('Mystery #' + d.shoppingFor.no)) + '</div>' +
-        '<div class="sub">Mystery #' + d.shoppingFor.no + '. Who they really are stays a mystery until party day.</div></div>' +
-        '<div class="card"><h3>Here\'s what they asked for</h3>' + wishListHTML(d.shoppingFor.wishes) +
-        '<p class="small muted" style="margin:16px 0 0">' + peso(s.budget) + ' budget' + (s.partyDate ? '. Bring it on ' + esc(s.partyDate) : '') +
-        '. Label the bag "#' + d.shoppingFor.no + (d.shoppingFor.alias ? ' ' + esc(d.shoppingFor.alias) : '') + '". Wait to see who you\'re buying for at the reveal.</p></div>';
+        '<div class="sub">Wait until party day to find out who they are.</div></div>' +
+        '<div class="card"><h3>Here\'s what they\'re asking for</h3>' + wishListHTML(d.shoppingFor.wishes) +
+        '<button class="btn block" id="nextSteps" style="margin-top:20px">Click for my next steps</button></div>';
     }
     if (s.phase === 'revealed') {
       html += '<div class="card center"><h2>The reveal is on</h2>' +
@@ -351,6 +351,31 @@
     if (!test && d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
     if ($('#logout')) $('#logout').onclick = function () { store('me', null); meLogin(); };
     if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(s); };
+    if ($('#nextSteps')) {
+      $('#nextSteps').onclick = function () { openNextSteps(d.shoppingFor, s); };
+      // Show the steps on their own the first time someone sees their person.
+      if (d._justOpened) { d._justOpened = false; setTimeout(function () { openNextSteps(d.shoppingFor, s); }, 1800); }
+    }
+  }
+
+  // What to do after you see your Mystery Person.
+  function openNextSteps(t, s) {
+    var label = '#' + t.no + (t.alias ? ' ' + t.alias : '');
+    var box = openModal(
+      '<div class="steps-head">' + KNIT.text('Next', { cls: 'modal-knit' }) + '<h2>Your next steps</h2></div>' +
+      '<ol class="next-steps">' +
+        '<li><b>Shop for their gift.</b> Pick something from their list, around ' + peso(s.budget) + '.</li>' +
+        '<li><b>Box it up and wrap it.</b> Put it in a big box or container and wrap it in Christmas wrapping paper.' +
+          '<div class="effort">Please don\'t just put it in a paper bag. Mag-effort naman kayo! 🎁</div></li>' +
+        '<li><b>Make it a mystery.</b> Fill the box with crumpled newspaper so nobody can guess what\'s inside from the shape, size or sound. ' +
+          '<span class="important">This is important for the game.</span></li>' +
+        '<li><b>Label it.</b> Write only <span class="lbl-chip">' + esc(label) + '</span> on the outside. No names, not yours and not theirs.</li>' +
+        '<li><b>Bring it' + (s.partyDate ? ' on ' + esc(s.partyDate) : ' to the party') + '</b> and keep your Mystery Person a secret.</li>' +
+      '</ol>' +
+      '<p class="spiel">The whole game runs on mystery. On party day every gift sits on one table, and people win them by answering trivia, then pick or steal the one they want. Nobody knows what\'s inside or who it\'s for until we open them together and reveal every Mystery Person. The better your gift is disguised, the more fun it gets.</p>' +
+      '<div class="row" style="justify-content:flex-end"><button class="btn" data-close>Got it</button></div>');
+    $('[data-close]', box).focus({ preventScroll: true });
+    box.scrollTop = 0;
   }
 
   // Alias in knit letters, broken over a few lines so long names stay big.
