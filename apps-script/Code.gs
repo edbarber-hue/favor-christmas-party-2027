@@ -197,6 +197,14 @@ var KKCore = (function () {
     return hash((settings.salt || '') + '|' + key(name) + '|' + pin);
   }
 
+  // A name-independent fingerprint of a PIN, so no two people can share one.
+  function pinKey(hash, settings, pin) { return hash((settings.salt || '') + '|pin|' + pin); }
+  function pinTaken(players, keyVal, exceptId) {
+    for (var i = 0; i < players.length; i++) if (players[i].pinKey === keyVal && players[i].id !== exceptId) return true;
+    return false;
+  }
+  var PIN_TAKEN = 'That PIN is already taken. Please pick a different 4-digit PIN.';
+
   function findPlayer(players, name) {
     var k = key(name);
     for (var i = 0; i < players.length; i++) if (key(players[i].name) === k) return players[i];
@@ -334,6 +342,7 @@ var KKCore = (function () {
         if (findPlayer(players, name)) fail('Someone already signed up as "' + name + '". Add a middle initial to tell you apart.');
         old.name = name;
         old.pinHash = pinHash(hash, s, name, pin);
+        old.pinKey = pinKey(hash, s, pin);
         old.wishes = wishes;
         db.savePlayers(players);
         return { ok: true, updated: true, renamed: true, name: name };
@@ -346,16 +355,20 @@ var KKCore = (function () {
         if (s.phase === 'revealed') fail('The party is over — wishlists are locked.');
         if (editsClosed(s)) fail('The deadline has passed, so wishlists are locked. Ask the organizer if you need a change.');
         existing.wishes = wishes;
+        if (!existing.pinKey) existing.pinKey = pinKey(hash, s, pin);
         db.savePlayers(players);
         return { ok: true, updated: true, name: existing.name };
       }
       if (s.phase !== 'signup') fail('Sign-ups are closed — the names have already been drawn. Ask the organizer to reopen sign-ups.');
       if (!/\S+\s+\S+/.test(name)) fail('Please enter your full name, first and last. You\'ll log in with it.');
       if (editsClosed(s)) fail('Sign-ups closed when the deadline passed. Ask the organizer if you still want in.');
+      var pk = pinKey(hash, s, pin);
+      if (pinTaken(players, pk)) fail(PIN_TAKEN);
       players.push({
         id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
         name: name,
         pinHash: pinHash(hash, s, name, pin),
+        pinKey: pk,
         wishes: wishes,
         mystery: 0,
         shopsFor: 0,
@@ -488,7 +501,10 @@ var KKCore = (function () {
       var me = null;
       players.forEach(function (x) { if (x.id === p.id) me = x; });
       if (!me) fail('Player not found.');
+      var rk = pinKey(hash, s, pin);
+      if (pinTaken(players, rk, me.id)) fail('Someone else already uses that PIN. Pick a different one.');
       me.pinHash = pinHash(hash, s, me.name, pin);
+      me.pinKey = rk;
       db.savePlayers(players);
       return { ok: true };
     },
@@ -539,7 +555,7 @@ var SHEET_PLAYERS = 'Players';
 var SHEET_SETTINGS = 'Settings';
 var SHEET_TRIVIA = 'Trivia';
 var PLAYER_HEADERS = ['Name', 'Mystery #', 'Animal name', 'Shops for Mystery #', 'Shops for (name)',
-  'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Joined', 'ID', 'PIN hash (do not edit)'];
+  'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Joined', 'ID', 'PIN hash (do not edit)', 'PIN key (do not edit)'];
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
@@ -571,7 +587,7 @@ var SheetDB = {
         return {
           name: String(r[0]).trim(), mystery: Number(r[1]) || 0, alias: String(r[2] || ''), shopsFor: Number(r[3]) || 0,
           wishes: wishes, joinedAt: r[10] instanceof Date ? r[10].toISOString() : String(r[10]),
-          id: String(r[11]), pinHash: String(r[12])
+          id: String(r[11]), pinHash: String(r[12]), pinKey: String(r[13] || '')
         };
       });
   },
@@ -583,7 +599,7 @@ var SheetDB = {
       var w = p.wishes || [];
       return [p.name, p.mystery || '', p.alias || '', p.shopsFor || '', p.shopsFor ? (byNo[p.shopsFor] || '') : '',
         wishToCell_(w[0]), wishToCell_(w[1]), wishToCell_(w[2]), wishToCell_(w[3]), wishToCell_(w[4]),
-        p.joinedAt, p.id, p.pinHash];
+        p.joinedAt, p.id, p.pinHash, p.pinKey || ''];
     });
     var last = sh.getLastRow();
     if (last > 1) sh.getRange(2, 1, last - 1, PLAYER_HEADERS.length).clearContent();

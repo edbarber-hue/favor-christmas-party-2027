@@ -4,7 +4,7 @@ var SHEET_PLAYERS = 'Players';
 var SHEET_SETTINGS = 'Settings';
 var SHEET_TRIVIA = 'Trivia';
 var PLAYER_HEADERS = ['Name', 'Mystery #', 'Animal name', 'Shops for Mystery #', 'Shops for (name)',
-  'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Joined', 'ID', 'PIN hash (do not edit)'];
+  'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Joined', 'ID', 'PIN hash (do not edit)', 'PIN key (do not edit)'];
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
@@ -36,7 +36,7 @@ var SheetDB = {
         return {
           name: String(r[0]).trim(), mystery: Number(r[1]) || 0, alias: String(r[2] || ''), shopsFor: Number(r[3]) || 0,
           wishes: wishes, joinedAt: r[10] instanceof Date ? r[10].toISOString() : String(r[10]),
-          id: String(r[11]), pinHash: String(r[12])
+          id: String(r[11]), pinHash: String(r[12]), pinKey: String(r[13] || '')
         };
       });
   },
@@ -48,7 +48,7 @@ var SheetDB = {
       var w = p.wishes || [];
       return [p.name, p.mystery || '', p.alias || '', p.shopsFor || '', p.shopsFor ? (byNo[p.shopsFor] || '') : '',
         wishToCell_(w[0]), wishToCell_(w[1]), wishToCell_(w[2]), wishToCell_(w[3]), wishToCell_(w[4]),
-        p.joinedAt, p.id, p.pinHash];
+        p.joinedAt, p.id, p.pinHash, p.pinKey || ''];
     });
     var last = sh.getLastRow();
     if (last > 1) sh.getRange(2, 1, last - 1, PLAYER_HEADERS.length).clearContent();
