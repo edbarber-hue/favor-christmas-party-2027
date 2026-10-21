@@ -217,7 +217,7 @@
             '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
             '<label>Gift ideas <span class="hint">3 to 5, around ' + peso(d.budget) + ' each</span></label>' +
             '<div class="brief"><b>Be ultra specific.</b> Include color, size, brand, scent or flavor. ' +
-            '<span>Hint: the person buying for you won\'t know your name or who you are, so your list is all they have to go on.</span></div>' +
+            '<span>Hint: the person buying for you may not know your name, age, or gender, so overcommunicate.</span></div>' +
             '<div id="wishes">' + rows + '</div>' +
             '<button type="button" class="add-wish" id="addWish"' + (n >= 5 ? ' hidden' : '') + '>+ Add another</button>' +
             '<div id="jErr" hidden></div>' +
