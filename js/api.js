@@ -56,14 +56,14 @@
   }
 
   var SAMPLE = [
-    ['Ana', ['Tumbler (Aquaflask)', 'Cute mug', 'Scented candle', 'Notebook', 'Fuzzy socks']],
-    ['Ben', ['Bluetooth earbuds', 'Coffee beans', 'Phone stand']],
-    ['Carla', ['Skincare set', 'Hair clips', 'Mini plant', 'Book: any devotional']],
-    ['Dennis', ['Board game', 'Snacks from Japan', 'Desk organizer']],
-    ['Ella', ['Journal', 'Gel pens', 'Tote bag', 'Washi tape']],
-    ['Franco', ['Gym towel', 'Water bottle', 'Protein bar box']],
-    ['Gabby', ['Lip tint', 'Phone case', 'Keychain', 'Polaroid film']],
-    ['Hans', ['Card game (UNO)', 'Bucket hat', 'Hot sauce set']]
+    ['Ana Reyes', ['Tumbler (Aquaflask)', 'Cute mug', 'Scented candle', 'Notebook', 'Fuzzy socks']],
+    ['Ben Santos', ['Bluetooth earbuds', 'Coffee beans', 'Phone stand']],
+    ['Carla Mendoza', ['Skincare set', 'Hair clips', 'Mini plant', 'Book: any devotional']],
+    ['Dennis Tan', ['Board game', 'Snacks from Japan', 'Desk organizer']],
+    ['Ella Garcia', ['Journal', 'Gel pens', 'Tote bag', 'Washi tape']],
+    ['Franco Villanueva', ['Gym towel', 'Water bottle', 'Protein bar box']],
+    ['Gabby Lim', ['Lip tint', 'Phone case', 'Keychain', 'Polaroid film']],
+    ['Hans Cruz', ['Card game (UNO)', 'Bucket hat', 'Hot sauce set']]
   ];
 
   function demoSeed() {

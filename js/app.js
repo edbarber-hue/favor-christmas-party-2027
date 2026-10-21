@@ -28,19 +28,21 @@
     catch (e) { return new Date(t).toLocaleString(); }
   }
   // Live countdown: any element with data-deadline gets updated every second.
-  function countdownHTML(iso, compact) {
+  function countdownHTML(iso, compact, label) {
     if (!iso || isNaN(Date.parse(iso))) return '';
-    return '<div class="countdown' + (compact ? ' compact' : '') + '" data-deadline="' + esc(iso) + '"></div>';
+    return '<div class="countdown' + (compact ? ' compact' : '') + '" data-deadline="' + esc(iso) + '" data-label="' + esc(label || 'Find out who you got in') + '"></div>';
   }
   function tickCountdowns() {
     $$('[data-deadline]').forEach(function (el) {
       var left = Date.parse(el.dataset.deadline) - Date.now();
       var compact = el.classList.contains('compact');
-      if (left <= 0) { el.innerHTML = '<span class="cd-closed">Wishlists are closed</span>'; return; }
+      if (left <= 0) { el.innerHTML = '<span class="cd-closed">Names are being drawn. Refresh to see who you got.</span>'; return; }
       var d = Math.floor(left / 864e5), h = Math.floor(left / 36e5) % 24, m = Math.floor(left / 6e4) % 60, sec = Math.floor(left / 1e3) % 60;
       if (compact) { el.textContent = 'Edits close in ' + (d ? d + 'd ' : '') + h + 'h ' + m + 'm ' + sec + 's'; return; }
-      var u = function (n, l) { return '<span class="cd-unit"><b>' + (n < 10 ? '0' : '') + n + '</b><i>' + l + '</i></span>'; };
-      el.innerHTML = '<span class="cd-label">Wishlists close in</span><span class="cd-units">' + u(d, 'days') + u(h, 'hrs') + u(m, 'min') + u(sec, 'sec') + '</span>';
+      var u = function (n, l) { return '<span class="cd-unit">' + KNIT.text((n < 10 ? '0' : '') + n, { color: '#eca7c6' }) + '<i>' + l + '</i></span>'; };
+      if (!el.firstChild) el.innerHTML = '<span class="cd-label">' + el.dataset.label + '</span><span class="cd-units"></span>';
+      var key = d + ':' + h + ':' + m + ':' + sec;
+      if (el.dataset.key !== key) { el.dataset.key = key; el.lastChild.innerHTML = u(d, 'days') + u(h, 'hrs') + u(m, 'min') + u(sec, 'sec'); }
     });
   }
   setInterval(tickCountdowns, 1000);
@@ -172,7 +174,7 @@
         '<div class="card pop">' +
           '<h2>' + (editing ? 'Your wishlist' : 'Join the game') + '</h2>' + countdownHTML(d.deadline, true) +
           '<form id="joinForm" novalidate>' +
-            '<label for="jName">Your name</label>' +
+            '<label for="jName">Your full name <span class="hint">first and last, you\'ll log in with it</span></label>' +
             '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '"' + (editing ? ' readonly' : '') + '>' +
             '<label for="jPin">Pick a 4-digit PIN <span class="hint">to log in later</span></label>' +
             '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
@@ -206,15 +208,21 @@
         API.call('join', payload).then(function (r) {
           store('me', { name: r.name, pin: payload.pin, wishes: items.filter(function (x) { return x.item.trim(); }) });
           confetti(90);
+          if (r.updated && info && info.phase === 'drawn') {
+            render('<div class="card center pop"><h2>Saved</h2><p class="muted">Your Secret Santa will see the new list.</p><a class="btn" href="#/me">My page</a></div>');
+            return;
+          }
           render(
-            '<div class="card center pop">' +
-              '<h2>' + (r.updated ? 'Saved' : 'You\'re in, ' + esc(r.name)) + '</h2>' +
-              '<p class="muted">' + (info && info.phase === 'drawn'
-                ? 'Your Secret Santa will see the new list.'
-                : 'After names are drawn' + (info && info.deadline ? ' (' + esc(fmtDeadline(info.deadline)) + ')' : '') + ', log in to see who you\'re shopping for.') + '</p>' +
-              '<a class="btn" href="#/me">Go to my page</a>' +
+            '<div class="card center pop come-back">' + KNIT.stockings(5) +
+              '<h2>' + (r.updated ? 'Saved' : 'You\'re in, ' + esc(r.name.split(' ')[0])) + '</h2>' +
+              '<p>' + comeBackLine(info && info.deadline) + '</p>' +
+              countdownHTML(info && info.deadline) +
+              '<button class="btn" id="remindBtn">Remind me on my phone</button>' +
+              '<p style="margin:14px 0 0"><a class="textlink" href="#/me">Go to my page</a></p>' +
             '</div>'
           );
+          $('#remindBtn').onclick = function () { openRemind(info); };
+          if (!r.updated) setTimeout(function () { openRemind(info); }, 1400);
         }).catch(function (err) { busy(btn, false); showError('#jErr', err); });
       });
     }).catch(function (e) { render('<div class="error">' + esc(e.message) + '</div>'); });
@@ -235,7 +243,7 @@
       '<div class="card pop">' +
         '<h2>Log in</h2>' +
         '<form id="meForm" novalidate>' +
-          '<label for="mName">Your name</label><input id="mName" maxlength="60" autocomplete="name">' +
+          '<label for="mName">Your full name</label><input id="mName" maxlength="60" autocomplete="name" placeholder="First and last name">' +
           '<label for="mPin">Your PIN</label><input id="mPin" class="pin-input" inputmode="numeric" maxlength="4" type="password" autocomplete="off">' +
           '<div id="mErr" hidden></div>' +
           '<button class="btn block" style="margin-top:20px" type="submit">Log in</button>' +
@@ -263,15 +271,29 @@
       (d.myMystery ? '. They\'re secretly #' + d.myMystery + ', ' + esc(d.myAlias) : '') + '. <a href="#/test">Back to everyone</a></div>';
 
     if (s.phase === 'signup') {
-      html += '<div class="card pop"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
-        '<p class="muted">You\'re in. Names are drawn ' + (s.deadline ? 'after ' + esc(fmtDeadline(s.deadline)) : 'soon') + '. Check back here to see who you\'re shopping for.</p>' + countdownHTML(s.deadline, true) + '</div>';
+      html += '<div class="card center pop come-back"><h2>Hi, ' + esc(d.name.split(' ')[0]) + '</h2>' +
+        '<p>' + comeBackLine(s.deadline) + '</p>' + countdownHTML(s.deadline) +
+        (test ? '' : '<button class="btn" id="remindBtn">Remind me on my phone</button>') + '</div>';
+    } else if (d.shoppingFor && !test && !store('opened-' + d.name)) {
+      html += '<div class="ticket gate pop">' + KNIT.stockings(5) +
+        '<div class="label">Names have been drawn</div>' +
+        '<div class="gate-q">Want to see who you got?</div>' +
+        '<button class="btn pink" id="openGift">Show me</button></div>';
+      render(html);
+      $('#openGift').onclick = function () {
+        store('opened-' + d.name, 1);
+        var t = $('.ticket'); t.classList.add('opening');
+        setTimeout(function () { meDashboard(d); confetti(170); }, 650);
+      };
+      return;
     } else if (d.shoppingFor) {
-      html += '<div class="ticket pop">' + STAR6 + '<div class="label">You\'re shopping for</div>' +
-        '<div class="big">#' + d.shoppingFor.no + '</div>' +
-        (d.shoppingFor.alias ? '<div class="alias">' + esc(d.shoppingFor.alias) + '</div>' : '') +
-        '<div class="sub">' + peso(s.budget) + (s.partyDate ? ', bring it on ' + esc(s.partyDate) : '') + '</div></div>' +
+      html += '<div class="ticket pop">' + KNIT.band({ fg: '#eca7c6', height: 34 }) +
+        '<div class="label">You got</div>' +
+        '<div class="knit-name">' + KNIT.text(d.shoppingFor.name || ('#' + d.shoppingFor.no)) + '</div>' +
+        (d.shoppingFor.alias ? '<div class="alias">a.k.a. ' + esc(d.shoppingFor.alias) + '</div>' : '') +
+        '<div class="sub">Mystery #' + d.shoppingFor.no + '. ' + peso(s.budget) + ' budget' + (s.partyDate ? ', bring it on ' + esc(s.partyDate) : '') + '</div></div>' +
         '<div class="card"><h3>Their wishlist</h3>' + wishListHTML(d.shoppingFor.wishes) +
-        '<p class="small muted" style="margin:16px 0 0">Label the bag "#' + d.shoppingFor.no + (d.shoppingFor.alias ? ' ' + esc(d.shoppingFor.alias) : '') + '". No names, and keep it secret.</p></div>';
+        '<p class="small muted" style="margin:16px 0 0">Label the bag only "#' + d.shoppingFor.no + (d.shoppingFor.alias ? ' ' + esc(d.shoppingFor.alias) : '') + '". Never write ' + esc((d.shoppingFor.name || '').split(' ')[0] || 'their') + '\'s name, and keep it secret.</p></div>';
     }
     if (s.phase === 'revealed') {
       html += '<div class="card center"><h2>The reveal is on</h2>' +
@@ -285,6 +307,50 @@
     render(html);
     if (!test && d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
     if ($('#logout')) $('#logout').onclick = function () { store('me', null); meLogin(); };
+    if ($('#remindBtn')) $('#remindBtn').onclick = function () { openRemind(s); };
+  }
+
+  function comeBackLine(deadline) {
+    var t = Date.parse(deadline);
+    if (isNaN(t)) return 'Come back after names are drawn to see who you got.';
+    var days = Math.ceil((t - Date.now()) / 864e5);
+    var when = days > 1 ? 'in ' + days + ' days' : days === 1 ? 'tomorrow' : 'soon';
+    return 'Come back here ' + when + ', after ' + esc(fmtDeadline(deadline)) + ', to see who you got.';
+  }
+
+  // Calendar reminder: the most reliable way to make a phone ping later.
+  function openRemind(s) {
+    s = s || info || {};
+    var t = Date.parse(s.deadline);
+    if (isNaN(t)) return;
+    var start = new Date(t + 5 * 6e4), end = new Date(t + 20 * 6e4);
+    var z = function (d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); };
+    var url = location.href.split('#')[0] + '#/me';
+    var title = 'See who you got! ' + (s.eventName || 'Mystery Kris Kringle');
+    var details = 'Names have been drawn. Log in with your full name and PIN: ' + url;
+    var g = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) +
+      '&dates=' + z(start) + '/' + z(end) + '&details=' + encodeURIComponent(details);
+    var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Favor//Kris Kringle//EN', 'BEGIN:VEVENT',
+      'UID:kk-' + t + '@favor', 'DTSTAMP:' + z(new Date()), 'DTSTART:' + z(start), 'DTEND:' + z(end),
+      'SUMMARY:' + title, 'DESCRIPTION:' + details, 'URL:' + url,
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + title, 'TRIGGER:PT0M', 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    var box = openModal(
+      '<div class="center">' + KNIT.text('Psst', { cls: 'modal-knit' }) +
+      '<h2 style="margin-top:12px">Get a reminder</h2>' +
+      '<p class="muted">Names are drawn ' + esc(fmtDeadline(s.deadline)) + '. Add a reminder and your phone will ping you when it\'s time to see who you got.</p>' +
+      '<div style="display:grid;gap:10px">' +
+        '<a class="btn" id="icsBtn" href="#">iPhone or other calendar</a>' +
+        '<a class="btn secondary" href="' + esc(g) + '" target="_blank" rel="noopener">Google Calendar</a>' +
+        '<button class="btn ghost" data-close>Not now</button>' +
+      '</div></div>', true);
+    $('#icsBtn', box).onclick = function (e) {
+      e.preventDefault();
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+      a.download = 'see-who-you-got.ics';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
   }
 
   // =====================================================================
@@ -714,7 +780,7 @@
       render('<div class="reveal-stage">' +
         '<div class="dots">' + dots + '</div>' +
         '<div class="flip' + (flipped ? ' flipped' : '') + '" id="card"><div class="flip-inner">' +
-          '<div class="face front">' + STAR6 + '<div class="lbl">#' + r.no + '</div><div class="num">' + esc(r.alias || ('Mystery Person #' + r.no)) + '</div><div class="q-mark">?</div>' +
+          '<div class="face front">' + KNIT.band({ fg: '#eca7c6', height: 30 }) + '<div class="lbl">' + KNIT.text('#' + r.no) + '</div><div class="num">' + esc(r.alias || ('Mystery Person #' + r.no)) + '</div><div class="q-mark">?</div>' +
             '<div class="small" style="color:var(--cream);opacity:.7;margin-top:18px">Tap to reveal</div></div>' +
           '<div class="face back"><div class="was">#' + r.no + ' ' + esc(r.alias) + ' was…</div><div class="name">' + esc(r.name) + '</div>' +
             '<div class="meta">' + (r.giver ? '<span>🎅 Gift from <b>' + esc(r.giver) + '</b></span>' : '') +
@@ -766,10 +832,10 @@
     var b = peso(s.budget);
     return '<div class="guide-grid guide">' +
       '<div class="card"><h3>The game</h3><ol>' +
-        '<li>Everyone adds 3–5 gift ideas around ' + b + ' and picks a 4-digit PIN.</li>' +
-        '<li>You draw names. Each person secretly becomes a numbered Mystery Person with a funny animal name, and is given another Mystery Person to shop for.</li>' +
-        '<li>Shoppers only see a number, an animal name and a wishlist. Never a real name.</li>' +
-        '<li>Each gift goes in a bag labeled with the number and animal name only.</li>' +
+        '<li>Everyone adds 3–5 gift ideas around ' + b + ', using their full name and a 4-digit PIN.</li>' +
+        '<li>When the countdown ends' + (s.deadline ? ' (' + esc(fmtDeadline(s.deadline)) + ')' : '') + ', wishlists lock and names are drawn automatically. Each person gets a number and a funny animal name, plus someone to shop for.</li>' +
+        '<li>People log in, tap "Show me", and see who they got: the real name, animal name and wishlist. Nobody sees their own number.</li>' +
+        '<li>Each gift goes in a bag labeled with the number and animal name only, never a real name.</li>' +
         '<li>At the party, every bag goes on one table and people win bags with trivia.</li>' +
         '<li>Everyone opens together, the reveal shows who each Mystery Person was, then people trade to get their own wishlist.</li>' +
       '</ol></div>' +
@@ -783,14 +849,15 @@
       '</ul></div>' +
       '<div class="card"><h3>Your checklist</h3><ol>' +
         '<li>Send the invite from the Organizer page.</li>' +
-        '<li>After the deadline, press Draw names.</li>' +
+        '<li>Names draw themselves at the deadline. Want it earlier? Press Draw names.</li>' +
         '<li>Remind everyone to log in and see who they\'re shopping for.</li>' +
         '<li>Party day: open the party board on the TV and log in.</li>' +
         '<li>When every bag has a home and is opened, press Start the reveal and put the reveal on the TV. Space bar flips each card.</li>' +
       '</ol></div>' +
       '<div class="card"><h3>Good to know</h3><ul>' +
         '<li>Forgotten PIN: Organizer page, Reset PIN, then tell them privately.</li>' +
-        '<li>Late joiner: Undo the draw, add them, draw again. Only before anyone has shopped.</li>' +
+        '<li>Late joiner: set a later deadline, undo the draw, add them, then draw again. Only before anyone has shopped.</li>' +
+        '<li>Reminders: after joining, people can add the draw time to their phone calendar.</li>' +
         '<li>Everything is saved in your Google Sheet. Don\'t share the Sheet; it shows who\'s who.</li>' +
         '<li>Edit trivia questions in the Sheet\'s Trivia tab.</li>' +
         '<li>Use Open as below to check what any person sees.</li>' +
@@ -867,5 +934,7 @@
     bar.hidden = false;
     bar.innerHTML = 'Demo mode. Organizer password: <b>demo</b>';
   }
+  var fb = document.getElementById('footBand');
+  if (fb) fb.innerHTML = KNIT.band({ fg: '#f2e8d4', alt: '#eca7c6', height: 44 });
   route();
 })();

@@ -135,10 +135,40 @@ var KKCore = (function () {
     var out = { name: me.name, wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
     if (s.phase !== 'signup' && me.shopsFor) {
       var target = byMystery(players, me.shopsFor);
-      if (target) out.shoppingFor = { no: target.mystery, alias: target.alias || '', wishes: target.wishes };
+      if (target) out.shoppingFor = { no: target.mystery, alias: target.alias || '', name: target.name, wishes: target.wishes };
     }
     if (s.phase === 'revealed' || testMode) { out.myMystery = me.mystery; out.myAlias = me.alias || ''; }
     return out;
+  }
+
+  function drawNames(db, rand) {
+    var s = db.getSettings();
+    var players = db.getPlayers();
+    if (players.length < 3) fail('You need at least 3 people to draw names.');
+    // Random Mystery numbers 1..N
+    var nums = shuffle(players.map(function (_, i) { return i + 1; }), rand);
+    players.forEach(function (pl, i) { pl.mystery = nums[i]; });
+    // Funny animal alias for every Mystery Person
+    var pool = shuffle((typeof KK_ANIMALS !== 'undefined' ? KK_ANIMALS : []).slice(), rand);
+    players.forEach(function (pl) { pl.alias = pool[pl.mystery - 1] || ('Mystery Critter #' + pl.mystery); });
+    // One big random circle: each person shops for the next one, never themselves
+    var circle = shuffle(players.slice(), rand);
+    for (var i = 0; i < circle.length; i++) circle[i].shopsFor = circle[(i + 1) % circle.length].mystery;
+    db.savePlayers(players);
+    s.phase = 'drawn';
+    db.saveSettings(s);
+    var g = newGame(players);
+    g.updatedAt = Date.now();
+    db.saveGame(g);
+    return { ok: true, count: players.length };
+  }
+
+  // Names are drawn automatically the first time anyone visits after the deadline.
+  function maybeAutoDraw(db) {
+    var s = db.getSettings();
+    if (s.phase !== 'signup' || !editsClosed(s)) return;
+    if (db.getPlayers().length < 3) return;
+    drawNames(db);
   }
 
   var ops = {
@@ -150,7 +180,7 @@ var KKCore = (function () {
     join: function (db, hash, p) {
       var s = db.getSettings();
       var name = clean(p.name, 60);
-      if (name.length < 2) fail('Please enter your name (as people at the party know you).');
+      if (name.length < 2) fail('Please enter your full name.');
       var pin = checkPin(p.pin);
       var wishes = cleanWishes(p.wishes);
       var players = db.getPlayers();
@@ -166,6 +196,7 @@ var KKCore = (function () {
         return { ok: true, updated: true, name: existing.name };
       }
       if (s.phase !== 'signup') fail('Sign-ups are closed — the names have already been drawn. Ask the organizer to reopen sign-ups.');
+      if (!/\S+\s+\S+/.test(name)) fail('Please enter your full name, first and last. You\'ll log in with it.');
       if (editsClosed(s)) fail('Sign-ups closed when the deadline passed. Ask the organizer if you still want in.');
       players.push({
         id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
@@ -248,29 +279,13 @@ var KKCore = (function () {
     },
 
     draw: function (db, hash, p, rand) {
-      var s = requireAdmin(db, p);
-      var players = db.getPlayers();
-      if (players.length < 3) fail('You need at least 3 people to draw names.');
-      // Random Mystery numbers 1..N
-      var nums = shuffle(players.map(function (_, i) { return i + 1; }), rand);
-      players.forEach(function (pl, i) { pl.mystery = nums[i]; });
-      // Funny animal alias for every Mystery Person
-      var pool = shuffle((typeof KK_ANIMALS !== 'undefined' ? KK_ANIMALS : []).slice(), rand);
-      players.forEach(function (pl) { pl.alias = pool[pl.mystery - 1] || ('Mystery Critter #' + pl.mystery); });
-      // One big random circle: each person shops for the next one, never themselves
-      var circle = shuffle(players.slice(), rand);
-      for (var i = 0; i < circle.length; i++) circle[i].shopsFor = circle[(i + 1) % circle.length].mystery;
-      db.savePlayers(players);
-      s.phase = 'drawn';
-      db.saveSettings(s);
-      var g = newGame(players);
-      g.updatedAt = Date.now();
-      db.saveGame(g);
-      return { ok: true, count: players.length };
+      requireAdmin(db, p);
+      return drawNames(db, rand);
     },
 
     reopen: function (db, hash, p) {
       var s = requireAdmin(db, p);
+      if (editsClosed(s)) fail('Set a later wishlist deadline first (Event settings), otherwise names get drawn again right away.');
       var players = db.getPlayers();
       players.forEach(function (pl) { pl.mystery = 0; pl.shopsFor = 0; pl.alias = ''; });
       db.savePlayers(players);
@@ -353,6 +368,7 @@ var KKCore = (function () {
   function handle(db, hash, op, payload, rand) {
     try {
       if (!ops[op]) fail('Unknown request.');
+      maybeAutoDraw(db);
       return { ok: true, data: ops[op](db, hash, payload || {}, rand) };
     } catch (e) {
       return { ok: false, error: e.userFacing ? e.message : ('Something went wrong: ' + e.message) };

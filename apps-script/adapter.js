@@ -103,8 +103,7 @@ function respond_(obj) {
 }
 
 function run_(op, payload) {
-  // Reads don't need the lock; anything that might write does.
-  if (op === 'info' || op === 'board' || op === 'reveal') return KKCore.handle(SheetDB, sha256_, op, payload);
+  // Every request can write (names are drawn automatically at the deadline), so all take the lock.
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { ok: false, error: 'The site is busy — please try again in a few seconds.' };
   try { return KKCore.handle(SheetDB, sha256_, op, payload); }
