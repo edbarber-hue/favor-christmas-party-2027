@@ -449,7 +449,7 @@
     render(
       '<div class="card" style="max-width:440px;margin:0 auto">' +
         '<h2>Organizer</h2>' +
-        '<p class="muted">Enter the organizer password' + (API.demo ? ' (demo mode password: <b>demo</b>)' : ' from the Settings tab of your Google Sheet') + '.</p>' +
+        '<p class="muted">Enter the organizer password.</p>' +
         '<form id="aForm"><label for="aPw">Password</label><input id="aPw" type="password" autocomplete="current-password">' +
         '<div id="aErr" hidden></div><button class="btn block" style="margin-top:16px">Unlock</button></form>' +
       '</div>'
@@ -1472,11 +1472,6 @@
   }
   addEventListener('hashchange', route);
 
-  if (API.demo) {
-    var bar = $('#demoBar');
-    bar.hidden = false;
-    bar.innerHTML = 'Demo mode. Organizer password: <b>demo</b>';
-  }
   // Every fresh visit starts on the front page, whatever link or old tab it came from.
   if (location.hash && location.hash !== '#/' && location.hash !== '#' && !/[?&]tv\b/.test(location.search)) {
     try { history.replaceState(null, '', location.pathname + location.search + '#/'); } catch (e) { location.hash = '#/'; }
