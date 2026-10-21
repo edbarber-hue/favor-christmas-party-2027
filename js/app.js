@@ -175,7 +175,8 @@
           '<h2>' + (editing ? 'Your wishlist' : 'Join the game') + '</h2>' + countdownHTML(d.deadline, true) +
           '<form id="joinForm" novalidate>' +
             '<label for="jName">Your full name <span class="hint">first and last, you\'ll log in with it</span></label>' +
-            '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '"' + (editing ? ' readonly' : '') + '>' +
+            '<input id="jName" name="name" maxlength="60" autocomplete="name" value="' + esc(sess ? sess.name : '') + '">' +
+            (editing ? '<p class="small muted" style="margin:6px 0 0">Not ' + esc(sess.name.split(' ')[0]) + '? <a href="#" id="notMe">Start fresh</a></p>' : '') +
             '<label for="jPin">Pick a 4-digit PIN <span class="hint">to log in later</span></label>' +
             '<input id="jPin" name="pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" type="password" value="' + esc(sess ? sess.pin : '') + '">' +
             '<label>Gift ideas <span class="hint">3 to 5, around ' + peso(d.budget) + ' each</span></label>' +
@@ -186,6 +187,7 @@
           '</form>' +
         '</div>'
       );
+      if ($('#notMe')) $('#notMe').onclick = function (e) { e.preventDefault(); store('me', null); viewJoin(); };
       var wl = $('#wishes');
       wl.addEventListener('click', function (e) {
         var t = e.target.closest('.link-toggle'); if (!t) return;
@@ -204,17 +206,19 @@
           return { item: r.querySelector('[name=item]').value, link: r.querySelector('[name=link]').value };
         });
         var payload = { name: $('#jName').value, pin: $('#jPin').value, wishes: items };
+        if (editing && sess && sess.name) payload.oldName = sess.name;
         busy(btn, true, 'Saving…');
         API.call('join', payload).then(function (r) {
           store('me', { name: r.name, pin: payload.pin, wishes: items.filter(function (x) { return x.item.trim(); }) });
           confetti(90);
           if (r.updated && info && info.phase === 'drawn') {
-            render('<div class="card center pop"><h2>Saved</h2><p class="muted">Your Secret Santa will see the new list.</p><a class="btn" href="#/me">My page</a></div>');
+            render('<div class="card center pop"><h2>Saved</h2><p class="muted">' + (r.renamed ? 'From now on, log in as ' + esc(r.name) + '. ' : '') + 'Your Secret Santa will see the new list.</p><a class="btn" href="#/me">My page</a></div>');
             return;
           }
           render(
             '<div class="card center pop come-back">' + KNIT.stockings(5) +
               '<h2>' + (r.updated ? 'Saved' : 'You\'re in, ' + esc(r.name.split(' ')[0])) + '</h2>' +
+              (r.renamed ? '<p class="small muted">From now on, log in as ' + esc(r.name) + '.</p>' : '') +
               '<p>' + comeBackLine(info && info.deadline) + '</p>' +
               countdownHTML(info && info.deadline) +
               '<button class="btn" id="remindBtn">Remind me on my phone</button>' +

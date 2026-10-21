@@ -325,6 +325,19 @@ var KKCore = (function () {
       var pin = checkPin(p.pin);
       var wishes = cleanWishes(p.wishes);
       var players = db.getPlayers();
+      // Renaming: the person is logged in under their old name and changed it.
+      if (p.oldName && key(p.oldName) !== key(name)) {
+        var old = findPlayer(players, p.oldName);
+        if (!old || old.pinHash !== pinHash(hash, s, p.oldName, pin)) fail('To change your name, use the same PIN you joined with.');
+        if (s.phase === 'revealed' || editsClosed(s)) fail('The deadline has passed, so names and wishlists are locked.');
+        if (!/\S+\s+\S+/.test(name)) fail('Please enter your full name, first and last. You\'ll log in with it.');
+        if (findPlayer(players, name)) fail('Someone already signed up as "' + name + '". Add a middle initial to tell you apart.');
+        old.name = name;
+        old.pinHash = pinHash(hash, s, name, pin);
+        old.wishes = wishes;
+        db.savePlayers(players);
+        return { ok: true, updated: true, renamed: true, name: name };
+      }
       var existing = findPlayer(players, name);
       if (existing) {
         if (existing.pinHash !== pinHash(hash, s, name, pin)) {
