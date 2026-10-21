@@ -62,6 +62,7 @@ var SheetDB = {
       phase: String(s.phase || 'signup'), budget: Number(s.budget) || 500,
       eventName: String(s.eventName || 'Favor Christmas Party 2027'),
       deadline: s.deadline instanceof Date ? s.deadline.toISOString() : String(s.deadline || ''),
+      opensAt: s.opensAt instanceof Date ? s.opensAt.toISOString() : String(s.opensAt || ''),
       partyDate: s.partyDate instanceof Date ? Utilities.formatDate(s.partyDate, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.partyDate || ''),
       adminPassword: String(s.adminPassword || ''), salt: String(s.salt || '')
     };
@@ -69,11 +70,11 @@ var SheetDB = {
   saveSettings: function (s) {
     var sh = sheet_(SHEET_SETTINGS);
     var vals = sh.getDataRange().getValues();
-    ['phase', 'budget', 'eventName', 'deadline', 'partyDate'].forEach(function (k) {
+    ['phase', 'budget', 'eventName', 'opensAt', 'deadline', 'partyDate'].forEach(function (k) {
       var row = -1;
       for (var i = 0; i < vals.length; i++) if (String(vals[i][0]).trim() === k) row = i + 1;
-      if (row < 0) { sh.appendRow([k, k === 'deadline' && s[k] ? "'" + s[k] : s[k]]); vals.push([k, s[k]]); }
-      else sh.getRange(row, 2).setValue(k === 'deadline' && s[k] ? "'" + s[k] : s[k]);
+      if (row < 0) { sh.appendRow([k, (k === 'deadline' || k === 'opensAt') && s[k] ? "'" + s[k] : s[k]]); vals.push([k, s[k]]); }
+      else sh.getRange(row, 2).setValue((k === 'deadline' || k === 'opensAt') && s[k] ? "'" + s[k] : s[k]);
     });
   },
   getGame: function () {
@@ -136,12 +137,13 @@ function setup() {
 
   var settings = ss.getSheetByName(SHEET_SETTINGS) || ss.insertSheet(SHEET_SETTINGS);
   if (settings.getLastRow() < 1) {
-    settings.getRange(1, 1, 8, 3).setValues([
+    settings.getRange(1, 1, 9, 3).setValues([
       ['Setting', 'Value', 'Notes'],
       ['adminPassword', 'change-me', 'Organizer password for the website. CHANGE THIS.'],
       ['eventName', 'Favor Christmas Party 2027', 'Shown at the top of the site'],
       ['budget', 500, 'Gift budget in pesos'],
-      ['deadline', "'2026-10-24T23:59:00+08:00", 'Wishlist deadline (Manila time). Change it from the website\'s Organizer page.'],
+      ['opensAt', "'2026-10-27T00:00:00+08:00", 'When sign-ups open (Manila time). Change it from the website\'s Organizer page.'],
+      ['deadline', "'2026-10-30T23:59:00+08:00", 'Wishlist deadline (Manila time). Change it from the website\'s Organizer page.'],
       ['partyDate', '', 'Party date, e.g. Dec 19'],
       ['phase', 'signup', 'Managed by the website: signup / drawn / revealed'],
       ['salt', Utilities.getUuid(), 'Used to scramble PINs. Do not change after people sign up.']

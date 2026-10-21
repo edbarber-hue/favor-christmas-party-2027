@@ -28,17 +28,25 @@
     catch (e) { return new Date(t).toLocaleString(); }
   }
   // Live countdown: any element with data-deadline gets updated every second.
-  function countdownHTML(iso, compact, label) {
+  function countdownHTML(iso, compact, label, doneText) {
     if (!iso || isNaN(Date.parse(iso))) return '';
-    return '<div class="countdown' + (compact ? ' compact' : '') + '" data-deadline="' + esc(iso) + '" data-label="' + esc(label || 'Find out who you got in') + '"></div>';
+    label = label || (compact ? 'Edits close in' : 'Find out who you got in');
+    return '<div class="countdown' + (compact ? ' compact' : '') + '" data-deadline="' + esc(iso) + '" data-label="' + esc(label) + '" data-done="' + esc(doneText || 'Drawing names…') + '"></div>';
   }
   function tickCountdowns() {
     $$('[data-deadline]').forEach(function (el) {
       var left = Date.parse(el.dataset.deadline) - Date.now();
       var compact = el.classList.contains('compact');
-      if (left <= 0) { el.innerHTML = '<span class="cd-closed">Names are being drawn. Refresh to see who you got.</span>'; return; }
+      if (left <= 0) {
+        if (!el.dataset.fired) {
+          el.dataset.fired = '1';
+          el.innerHTML = '<span class="cd-closed">' + esc(el.dataset.done) + '</span>';
+          setTimeout(function () { if (document.body.contains(el)) route(); }, 1200);
+        }
+        return;
+      }
       var d = Math.floor(left / 864e5), h = Math.floor(left / 36e5) % 24, m = Math.floor(left / 6e4) % 60, sec = Math.floor(left / 1e3) % 60;
-      if (compact) { el.textContent = 'Edits close in ' + (d ? d + 'd ' : '') + h + 'h ' + m + 'm ' + sec + 's'; return; }
+      if (compact) { el.textContent = el.dataset.label + ' ' + (d ? d + 'd ' : '') + h + 'h ' + m + 'm ' + sec + 's'; return; }
       var u = function (n, l) { return '<span class="cd-unit">' + KNIT.text((n < 10 ? '0' : '') + n, { color: '#eca7c6' }) + '<i>' + l + '</i></span>'; };
       if (!el.firstChild) el.innerHTML = '<span class="cd-label">' + el.dataset.label + '</span><span class="cd-units"></span>';
       var key = d + ':' + h + ':' + m + ':' + sec;
@@ -125,7 +133,9 @@
     loadInfo().then(function (d) {
       var facts = '<span>Your budget is ' + Number(d.budget || 0).toLocaleString('en-PH') + ' pesos</span>' +
         '<span>Christmas party is on ' + (d.partyDate ? esc(d.partyDate) : 'a date to be announced') + '</span>';
-      var cta = d.phase === 'signup' && !d.editsClosed
+      var cta = d.notOpen
+        ? '<p class="small" style="opacity:.85;margin:0">Sign-ups open ' + esc(fmtDeadline(d.opensAt)) + '</p>'
+        : d.phase === 'signup' && !d.editsClosed
         ? '<a class="btn cream block" href="#/join">Add my wishlist</a><a class="textlink" href="#/me">Already joined? Log in</a>'
         : d.phase === 'signup'
         ? '<a class="btn cream block" href="#/me">Log in</a>'
@@ -137,7 +147,7 @@
           '<h1 class="poster-type"><span class="script">Mystery</span><span class="big">Kris Kringle</span></h1>' +
           '<p class="poster-sub">' + esc(d.eventName) + '</p>' +
           '<div class="poster-facts">' + facts + '</div>' +
-          (d.phase === 'signup' ? countdownHTML(d.deadline) : '') +
+          (d.notOpen ? countdownHTML(d.opensAt, false, 'Sign-ups open in', 'Opening…') : d.phase === 'signup' ? countdownHTML(d.deadline) : '') +
           '<div class="poster-cta">' + cta + '</div>' +
         '</section>'
       );
@@ -162,6 +172,7 @@
     loading();
     loadInfo().then(function (d) {
       var editing = !!(sess && sess.wishes);
+      if (d.notOpen) { render('<div class="card center pop come-back"><h2>Almost time</h2><p>Sign-ups open ' + esc(fmtDeadline(d.opensAt)) + '.</p>' + countdownHTML(d.opensAt, false, 'Sign-ups open in', 'Opening…') + '</div>'); return; }
       if (d.editsClosed && d.phase !== 'revealed') { render('<div class="card center"><h2>Wishlists are closed</h2><p class="muted">The deadline was ' + esc(fmtDeadline(d.deadline)) + '. Ask the organizer if you need a change.</p><a class="btn" href="#/me">My page</a></div>'); return; }
       if (d.phase === 'revealed') { render('<div class="card center"><h2>Wishlists are closed</h2><p class="muted">The party\'s done. Merry Christmas!</p><a class="btn" href="#/reveal">Watch the reveal</a></div>'); return; }
       if (d.phase === 'drawn' && !editing) {
@@ -424,6 +435,7 @@
         '<a class="btn ghost small" href="#/test">Test mode &amp; guide</a><button class="btn ghost small" id="aOut">Lock</button></div>' +
       '<div class="stats">' +
         '<div class="stat"><div class="n">' + ps.length + '</div><div class="l">joined</div></div>' +
+        '<div class="stat"><div class="n" style="font-size:1.3rem">' + (s.opensAt ? esc(fmtDeadline(s.opensAt)) : 'Now') + '</div><div class="l">sign-ups open' + (s.notOpen ? '' : 'ed') + '</div></div>' +
         '<div class="stat"><div class="n">' + peso(s.budget) + '</div><div class="l">budget</div></div>' +
         '<div class="stat"><div class="n" style="font-size:1.3rem">' + (s.deadline ? esc(fmtDeadline(s.deadline)) : 'Not set') + '</div><div class="l">wishlists due' + (s.editsClosed ? ' (closed)' : '') + '</div></div>' +
         '<div class="stat"><div class="n">' + (s.partyDate ? esc(s.partyDate) : 'Not set') + '</div><div class="l">party</div></div>' +
@@ -436,12 +448,13 @@
       '</div>' +
       '<div class="card"><h3>Invite message</h3>' +
         '<textarea id="invite" rows="4">' + esc(s.eventName) + ': Mystery Kris Kringle 🎁\n' +
-        'Add 3–5 gift ideas' + (s.deadline ? ' by ' + esc(fmtDeadline(s.deadline)) : '') + '. ' + peso(s.budget) + ' budget, all anonymous.\n' + esc(siteUrl) + '</textarea>' +
+        'Add 3–5 gift ideas' + (s.notOpen && s.opensAt ? ' from ' + esc(fmtDeadline(s.opensAt)) : '') + (s.deadline ? ' until ' + esc(fmtDeadline(s.deadline)) : '') + '. ' + peso(s.budget) + ' budget, all anonymous.\n' + esc(siteUrl) + '</textarea>' +
         '<button class="btn secondary small" id="copyInvite" style="margin-top:8px">Copy</button></div>' +
       '<details class="card"><summary>Event settings</summary>' +
         '<form id="setForm"><div class="grid2">' +
           '<div><label>Event name</label><input name="eventName" value="' + esc(s.eventName) + '"></div>' +
           '<div><label>Budget (₱)</label><input name="budget" type="number" min="0" value="' + esc(s.budget) + '"></div>' +
+          '<div><label>Sign-ups open <span class="hint">Manila time</span></label><input name="opensAt" type="datetime-local" value="' + esc(toLocalInput(s.opensAt)) + '"></div>' +
           '<div><label>Wishlist deadline <span class="hint">Manila time</span></label><input name="deadline" type="datetime-local" value="' + esc(toLocalInput(s.deadline)) + '"></div>' +
           '<div><label>Party date</label><input name="partyDate" placeholder="e.g. Dec 19" value="' + esc(s.partyDate) + '"></div>' +
         '</div><button class="btn small" style="margin-top:14px">Save settings</button><div id="setErr" hidden></div></form>' +
@@ -481,7 +494,7 @@
       e.preventDefault();
       var f = e.target, btn = f.querySelector('button');
       busy(btn, true);
-      API.call('saveSettings', { password: adminPw(), values: { eventName: f.eventName.value, budget: f.budget.value, deadline: f.deadline.value ? f.deadline.value + ':00+08:00' : '', partyDate: f.partyDate.value } })
+      API.call('saveSettings', { password: adminPw(), values: { eventName: f.eventName.value, budget: f.budget.value, opensAt: f.opensAt.value ? f.opensAt.value + ':00+08:00' : '', deadline: f.deadline.value ? f.deadline.value + ':00+08:00' : '', partyDate: f.partyDate.value } })
         .then(viewOrganizer).catch(function (err) { busy(btn, false); showError('#setErr', err); });
     });
   }
@@ -870,6 +883,62 @@
     '</div>';
   }
 
+  // ---- Test mode: speed up the countdown ----
+  function speedCard(s, drawn) {
+    var saved = store('realDeadline');
+    return '<div class="card speed">' +
+      '<div class="row"><h3 style="margin:0">Speed up the timer</h3><span class="spacer"></span>' +
+        (s.deadline ? '<span class="small muted">Deadline now: ' + esc(fmtDeadline(s.deadline)) + '</span>' : '') + '</div>' +
+      (s.notOpen
+        ? countdownHTML(s.opensAt, true, 'Sign-ups open in', 'Opening…') +
+          '<p class="small muted" style="margin:8px 0 12px">Sign-ups are still closed. Open them now to test joining, then speed up the deadline.</p>' +
+          '<button class="btn small" id="openNow">Open sign-ups now</button>'
+        : s.phase === 'signup'
+        ? countdownHTML(s.deadline, true) +
+          '<p class="small muted" style="margin:8px 0 12px">Move the deadline closer to watch the countdown end, sign-ups lock and names draw themselves. Open the home page or someone\'s page to watch it happen.</p>' +
+          '<div class="row"><button class="btn small" data-speed="10">10 seconds</button><button class="btn small" data-speed="60">1 minute</button><button class="btn small" data-speed="300">5 minutes</button></div>'
+        : '<p class="small muted" style="margin:8px 0 12px">Names are already drawn. To watch the countdown again, undo the draw: the deadline moves 1 minute ahead and sign-ups reopen.</p>' +
+          '<button class="btn small" id="speedAgain">Undo the draw and run a 1-minute timer</button>') +
+      (saved ? '<p style="margin:14px 0 0"><button class="btn ghost small" id="restoreDeadline">Put the real deadline back (' + esc(fmtDeadline(saved)) + ')</button></p>' : '') +
+      (store('realOpens') ? '<p style="margin:6px 0 0"><button class="btn ghost small" id="restoreOpens">Put the real opening back (' + esc(fmtDeadline(store('realOpens'))) + ')</button></p>' : '') +
+      '<div id="speedErr" hidden></div></div>';
+  }
+
+  function setDeadline(iso) {
+    return API.call('saveSettings', { password: adminPw(), values: { deadline: iso } });
+  }
+
+  function bindSpeed(s) {
+    var fail = function (e) { showError('#speedErr', e); };
+    var remember = function () { if (!store('realDeadline') && s.deadline) store('realDeadline', s.deadline); };
+    $$('[data-speed]').forEach(function (b) {
+      b.onclick = function () {
+        remember();
+        busy(b, true, 'Setting…');
+        setDeadline(new Date(Date.now() + Number(b.dataset.speed) * 1000).toISOString()).then(viewTest).catch(fail);
+      };
+    });
+    if ($('#speedAgain')) $('#speedAgain').onclick = function () {
+      if (!confirm('Undo the draw? Everyone loses their current person, and names are drawn again when the 1-minute timer ends.')) return;
+      remember();
+      setDeadline(new Date(Date.now() + 60000).toISOString())
+        .then(function () { return API.call('reopen', { password: adminPw() }); })
+        .then(viewTest).catch(fail);
+    };
+    if ($('#openNow')) $('#openNow').onclick = function () {
+      if (!store('realOpens') && s.opensAt) store('realOpens', s.opensAt);
+      API.call('saveSettings', { password: adminPw(), values: { opensAt: new Date(Date.now() - 1000).toISOString() } }).then(viewTest).catch(fail);
+    };
+    if ($('#restoreOpens')) $('#restoreOpens').onclick = function () {
+      API.call('saveSettings', { password: adminPw(), values: { opensAt: store('realOpens') } }).then(function () { store('realOpens', null); viewTest(); }).catch(fail);
+    };
+    if ($('#restoreDeadline')) $('#restoreDeadline').onclick = function () {
+      var real = store('realDeadline');
+      if (Date.parse(real) < Date.now() && !confirm('That deadline has already passed, so wishlists will lock and names will be drawn. Continue?')) return;
+      setDeadline(real).then(function () { store('realDeadline', null); viewTest(); }).catch(fail);
+    };
+  }
+
   function viewTest() {
     app.classList.add('wide');
     if (!adminPw()) return adminLogin(viewTest);
@@ -903,6 +972,7 @@
           (drawn && s.phase === 'drawn' ? '<button class="btn ghost small" id="redraw">Draw again</button>' : '') +
           (!drawn && ps.length >= 3 ? '<button class="btn ghost small" id="testDraw">Draw names now</button>' : '') +
           '<a class="btn ghost small" href="#/board">Party board</a></div>' +
+        speedCard(s, drawn) +
         GUIDE(s) +
         '<div class="page-head" style="margin-top:28px"><h2 style="margin:0">Everyone</h2></div>' +
         (drawn ? '' : '<div class="notice">Names haven\'t been drawn yet, so nobody has a Mystery # or animal name. Draw names on the Organizer page to see the full picture.</div>') +
@@ -916,6 +986,7 @@
       };
       if ($('#redraw')) $('#redraw').onclick = function () { doDraw('Draw again? Everyone gets a new person, number and animal name. Only do this while testing, before anyone has shopped.'); };
       if ($('#testDraw')) $('#testDraw').onclick = function () { doDraw('Draw names now? Sign-ups close and everyone gets their person.'); };
+      bindSpeed(s);
       if ($('#preview')) $('#preview').onclick = function () {
         var list = ps.filter(function (p) { return p.mystery; }).map(function (p) {
           var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];

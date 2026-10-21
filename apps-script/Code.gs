@@ -259,6 +259,8 @@ var KKCore = (function () {
     return isNaN(t) ? 0 : t;
   }
   function editsClosed(s) { var t = deadlineMs(s); return !!t && Date.now() > t; }
+  function notOpenYet(s) { var t = s.opensAt ? Date.parse(s.opensAt) : NaN; return !isNaN(t) && Date.now() < t; }
+  function isAdmin(s, p) { return !!s.adminPassword && String(p.password || '') === String(s.adminPassword); }
 
   function publicSettings(s, count) {
     return {
@@ -267,6 +269,8 @@ var KKCore = (function () {
       eventName: s.eventName || 'Favor Christmas Party 2027',
       deadline: s.deadline || '',
       editsClosed: editsClosed(s),
+      opensAt: s.opensAt || '',
+      notOpen: notOpenYet(s),
       partyDate: s.partyDate || '',
       count: count
     };
@@ -331,6 +335,7 @@ var KKCore = (function () {
       var name = clean(p.name, 60);
       if (name.length < 2) fail('Please enter your full name.');
       var pin = checkPin(p.pin);
+      if (notOpenYet(s) && !isAdmin(s, p)) fail('Sign-ups aren\'t open yet. Come back when the countdown ends.');
       var wishes = cleanWishes(p.wishes);
       var players = db.getPlayers();
       // Renaming: the person is logged in under their old name and changed it.
@@ -476,6 +481,11 @@ var KKCore = (function () {
       var v = p.values || {};
       if (v.eventName != null) s.eventName = clean(v.eventName, 80);
       if (v.budget != null) s.budget = Math.max(0, parseInt(v.budget, 10) || 0);
+      if (v.opensAt != null) {
+        var o = clean(v.opensAt, 40);
+        if (o && isNaN(Date.parse(o))) fail('That opening time isn\'t a valid date and time.');
+        s.opensAt = o;
+      }
       if (v.deadline != null) {
         var d = clean(v.deadline, 40);
         if (d && isNaN(Date.parse(d))) fail('That deadline isn\'t a valid date and time.');
@@ -613,6 +623,7 @@ var SheetDB = {
       phase: String(s.phase || 'signup'), budget: Number(s.budget) || 500,
       eventName: String(s.eventName || 'Favor Christmas Party 2027'),
       deadline: s.deadline instanceof Date ? s.deadline.toISOString() : String(s.deadline || ''),
+      opensAt: s.opensAt instanceof Date ? s.opensAt.toISOString() : String(s.opensAt || ''),
       partyDate: s.partyDate instanceof Date ? Utilities.formatDate(s.partyDate, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.partyDate || ''),
       adminPassword: String(s.adminPassword || ''), salt: String(s.salt || '')
     };
@@ -620,11 +631,11 @@ var SheetDB = {
   saveSettings: function (s) {
     var sh = sheet_(SHEET_SETTINGS);
     var vals = sh.getDataRange().getValues();
-    ['phase', 'budget', 'eventName', 'deadline', 'partyDate'].forEach(function (k) {
+    ['phase', 'budget', 'eventName', 'opensAt', 'deadline', 'partyDate'].forEach(function (k) {
       var row = -1;
       for (var i = 0; i < vals.length; i++) if (String(vals[i][0]).trim() === k) row = i + 1;
-      if (row < 0) { sh.appendRow([k, k === 'deadline' && s[k] ? "'" + s[k] : s[k]]); vals.push([k, s[k]]); }
-      else sh.getRange(row, 2).setValue(k === 'deadline' && s[k] ? "'" + s[k] : s[k]);
+      if (row < 0) { sh.appendRow([k, (k === 'deadline' || k === 'opensAt') && s[k] ? "'" + s[k] : s[k]]); vals.push([k, s[k]]); }
+      else sh.getRange(row, 2).setValue((k === 'deadline' || k === 'opensAt') && s[k] ? "'" + s[k] : s[k]);
     });
   },
   getGame: function () {
@@ -687,12 +698,13 @@ function setup() {
 
   var settings = ss.getSheetByName(SHEET_SETTINGS) || ss.insertSheet(SHEET_SETTINGS);
   if (settings.getLastRow() < 1) {
-    settings.getRange(1, 1, 8, 3).setValues([
+    settings.getRange(1, 1, 9, 3).setValues([
       ['Setting', 'Value', 'Notes'],
       ['adminPassword', 'change-me', 'Organizer password for the website. CHANGE THIS.'],
       ['eventName', 'Favor Christmas Party 2027', 'Shown at the top of the site'],
       ['budget', 500, 'Gift budget in pesos'],
-      ['deadline', "'2026-10-24T23:59:00+08:00", 'Wishlist deadline (Manila time). Change it from the website\'s Organizer page.'],
+      ['opensAt', "'2026-10-27T00:00:00+08:00", 'When sign-ups open (Manila time). Change it from the website\'s Organizer page.'],
+      ['deadline', "'2026-10-30T23:59:00+08:00", 'Wishlist deadline (Manila time). Change it from the website\'s Organizer page.'],
       ['partyDate', '', 'Party date, e.g. Dec 19'],
       ['phase', 'signup', 'Managed by the website: signup / drawn / revealed'],
       ['salt', Utilities.getUuid(), 'Used to scramble PINs. Do not change after people sign up.']

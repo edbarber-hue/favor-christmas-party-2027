@@ -118,6 +118,8 @@ var KKCore = (function () {
     return isNaN(t) ? 0 : t;
   }
   function editsClosed(s) { var t = deadlineMs(s); return !!t && Date.now() > t; }
+  function notOpenYet(s) { var t = s.opensAt ? Date.parse(s.opensAt) : NaN; return !isNaN(t) && Date.now() < t; }
+  function isAdmin(s, p) { return !!s.adminPassword && String(p.password || '') === String(s.adminPassword); }
 
   function publicSettings(s, count) {
     return {
@@ -126,6 +128,8 @@ var KKCore = (function () {
       eventName: s.eventName || 'Favor Christmas Party 2027',
       deadline: s.deadline || '',
       editsClosed: editsClosed(s),
+      opensAt: s.opensAt || '',
+      notOpen: notOpenYet(s),
       partyDate: s.partyDate || '',
       count: count
     };
@@ -190,6 +194,7 @@ var KKCore = (function () {
       var name = clean(p.name, 60);
       if (name.length < 2) fail('Please enter your full name.');
       var pin = checkPin(p.pin);
+      if (notOpenYet(s) && !isAdmin(s, p)) fail('Sign-ups aren\'t open yet. Come back when the countdown ends.');
       var wishes = cleanWishes(p.wishes);
       var players = db.getPlayers();
       // Renaming: the person is logged in under their old name and changed it.
@@ -335,6 +340,11 @@ var KKCore = (function () {
       var v = p.values || {};
       if (v.eventName != null) s.eventName = clean(v.eventName, 80);
       if (v.budget != null) s.budget = Math.max(0, parseInt(v.budget, 10) || 0);
+      if (v.opensAt != null) {
+        var o = clean(v.opensAt, 40);
+        if (o && isNaN(Date.parse(o))) fail('That opening time isn\'t a valid date and time.');
+        s.opensAt = o;
+      }
       if (v.deadline != null) {
         var d = clean(v.deadline, 40);
         if (d && isNaN(Date.parse(d))) fail('That deadline isn\'t a valid date and time.');
