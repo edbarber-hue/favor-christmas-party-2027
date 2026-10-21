@@ -6,7 +6,7 @@
  *   2. In the browser, for Demo Mode (no Google Sheet needed)
  *
  * It never touches storage directly: it gets a `db` adapter and a `hash` function.
- *   db.getPlayers()        -> [{id, name, pinHash, wishes:[{item, link}], mystery, shopsFor, joinedAt}]
+ *   db.getPlayers()        -> [{id, name, pinHash, wishes:[{item, link}], mystery, alias, shopsFor, joinedAt}]
  *   db.savePlayers(list)
  *   db.getSettings()       -> {phase, budget, eventName, deadline, partyDate, adminPassword, salt}
  *   db.saveSettings(obj)
@@ -88,9 +88,9 @@ var KKCore = (function () {
     return arr;
   }
 
-  function newGame(count) {
-    var bags = [];
-    for (var i = 1; i <= count; i++) bags.push({ no: i, holder: '', steals: 0 });
+  function newGame(players) {
+    var bags = players.map(function (p) { return { no: p.mystery, alias: p.alias || '', holder: '', steals: 0 }; })
+      .sort(function (a, b) { return a.no - b.no; });
     return {
       bags: bags,
       scores: {},          // name -> correct answers this round
@@ -109,7 +109,7 @@ var KKCore = (function () {
     return {
       phase: s.phase || 'signup',
       budget: s.budget || 500,
-      eventName: s.eventName || 'Mystery Kris Kringle',
+      eventName: s.eventName || 'Favor Christmas Party 2027',
       deadline: s.deadline || '',
       partyDate: s.partyDate || '',
       count: count
@@ -121,6 +121,17 @@ var KKCore = (function () {
     if (!s.adminPassword) fail('No organizer password is set yet. Add one in the Settings tab of the Google Sheet.');
     if (String(p.password || '') !== String(s.adminPassword)) fail('Wrong organizer password.');
     return s;
+  }
+
+  function meView(db, me, players, testMode) {
+    var s = db.getSettings();
+    var out = { name: me.name, wishes: me.wishes, settings: publicSettings(s, players.length), shoppingFor: null, testMode: !!testMode };
+    if (s.phase !== 'signup' && me.shopsFor) {
+      var target = byMystery(players, me.shopsFor);
+      if (target) out.shoppingFor = { no: target.mystery, alias: target.alias || '', wishes: target.wishes };
+    }
+    if (s.phase === 'revealed' || testMode) { out.myMystery = me.mystery; out.myAlias = me.alias || ''; }
+    return out;
   }
 
   var ops = {
@@ -162,19 +173,16 @@ var KKCore = (function () {
 
     me: function (db, hash, p) {
       var r = login(db, hash, p);
-      var s = db.getSettings();
-      var out = {
-        name: r.me.name,
-        wishes: r.me.wishes,
-        settings: publicSettings(s, r.players.length),
-        shoppingFor: null
-      };
-      if (s.phase !== 'signup' && r.me.shopsFor) {
-        var target = byMystery(r.players, r.me.shopsFor);
-        if (target) out.shoppingFor = { no: target.mystery, wishes: target.wishes };
-      }
-      if (s.phase === 'revealed') out.myMystery = r.me.mystery;
-      return out;
+      return meView(db, r.me, r.players, false);
+    },
+
+    // Organizer test mode: see anyone's page without their PIN
+    viewAs: function (db, hash, p) {
+      requireAdmin(db, p);
+      var players = db.getPlayers(), me = null;
+      players.forEach(function (x) { if (x.id === p.id) me = x; });
+      if (!me) fail('Player not found.');
+      return meView(db, me, players, true);
     },
 
     // Read-only party board for anyone's phone
@@ -204,12 +212,12 @@ var KKCore = (function () {
         if (!p.mystery) continue;
         var giver = null;
         for (var j = 0; j < players.length; j++) if (players[j].shopsFor === p.mystery) giver = players[j].name;
-        list.push({ no: p.mystery, name: p.name, giver: giver || '', wishes: p.wishes });
+        list.push({ no: p.mystery, alias: p.alias || '', name: p.name, giver: giver || '', wishes: p.wishes });
       }
       list.sort(function (a, b) { return a.no - b.no; });
       var g = db.getGame();
       if (g) list.forEach(function (r) { r.holder = (g.bags[r.no - 1] || {}).holder || ''; });
-      return { eventName: s.eventName || 'Mystery Kris Kringle', list: list };
+      return { eventName: s.eventName || 'Favor Christmas Party 2027', list: list };
     },
 
     // ---------- Organizer ----------
@@ -223,7 +231,7 @@ var KKCore = (function () {
         players: players.map(function (x) {
           var target = x.shopsFor ? byMystery(players, x.shopsFor) : null;
           return {
-            id: x.id, name: x.name, wishes: x.wishes, mystery: x.mystery,
+            id: x.id, name: x.name, wishes: x.wishes, mystery: x.mystery, alias: x.alias || '',
             shopsFor: x.shopsFor, shopsForName: target ? target.name : '', joinedAt: x.joinedAt
           };
         })
@@ -237,13 +245,16 @@ var KKCore = (function () {
       // Random Mystery numbers 1..N
       var nums = shuffle(players.map(function (_, i) { return i + 1; }), rand);
       players.forEach(function (pl, i) { pl.mystery = nums[i]; });
+      // Funny animal alias for every Mystery Person
+      var pool = shuffle((typeof KK_ANIMALS !== 'undefined' ? KK_ANIMALS : []).slice(), rand);
+      players.forEach(function (pl) { pl.alias = pool[pl.mystery - 1] || ('Mystery Critter #' + pl.mystery); });
       // One big random circle: each person shops for the next one, never themselves
       var circle = shuffle(players.slice(), rand);
       for (var i = 0; i < circle.length; i++) circle[i].shopsFor = circle[(i + 1) % circle.length].mystery;
       db.savePlayers(players);
       s.phase = 'drawn';
       db.saveSettings(s);
-      var g = newGame(players.length);
+      var g = newGame(players);
       g.updatedAt = Date.now();
       db.saveGame(g);
       return { ok: true, count: players.length };
@@ -252,7 +263,7 @@ var KKCore = (function () {
     reopen: function (db, hash, p) {
       var s = requireAdmin(db, p);
       var players = db.getPlayers();
-      players.forEach(function (pl) { pl.mystery = 0; pl.shopsFor = 0; });
+      players.forEach(function (pl) { pl.mystery = 0; pl.shopsFor = 0; pl.alias = ''; });
       db.savePlayers(players);
       s.phase = 'signup';
       db.saveSettings(s);
@@ -308,7 +319,7 @@ var KKCore = (function () {
         trivia: db.getTrivia(),
         names: players.map(function (x) { return x.name; }).sort(),
         wishesByBag: players.filter(function (x) { return x.mystery; })
-          .map(function (x) { return { no: x.mystery, wishes: x.wishes }; })
+          .map(function (x) { return { no: x.mystery, alias: x.alias || '', wishes: x.wishes }; })
           .sort(function (a, b) { return a.no - b.no; })
       };
     },

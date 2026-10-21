@@ -3,7 +3,7 @@
 var SHEET_PLAYERS = 'Players';
 var SHEET_SETTINGS = 'Settings';
 var SHEET_TRIVIA = 'Trivia';
-var PLAYER_HEADERS = ['Name', 'Mystery #', 'Shops for Mystery #', 'Shops for (name)',
+var PLAYER_HEADERS = ['Name', 'Mystery #', 'Animal name', 'Shops for Mystery #', 'Shops for (name)',
   'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Joined', 'ID', 'PIN hash (do not edit)'];
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
@@ -29,14 +29,14 @@ var SheetDB = {
     var n = sh.getLastRow() - 1;
     if (n < 1) return [];
     return sh.getRange(2, 1, n, PLAYER_HEADERS.length).getValues()
-      .filter(function (r) { return String(r[0]).trim() && r[10]; })
+      .filter(function (r) { return String(r[0]).trim() && r[11]; })
       .map(function (r) {
         var wishes = [];
-        for (var i = 4; i <= 8; i++) { var w = cellToWish_(r[i]); if (w) wishes.push(w); }
+        for (var i = 5; i <= 9; i++) { var w = cellToWish_(r[i]); if (w) wishes.push(w); }
         return {
-          name: String(r[0]).trim(), mystery: Number(r[1]) || 0, shopsFor: Number(r[2]) || 0,
-          wishes: wishes, joinedAt: r[9] instanceof Date ? r[9].toISOString() : String(r[9]),
-          id: String(r[10]), pinHash: String(r[11])
+          name: String(r[0]).trim(), mystery: Number(r[1]) || 0, alias: String(r[2] || ''), shopsFor: Number(r[3]) || 0,
+          wishes: wishes, joinedAt: r[10] instanceof Date ? r[10].toISOString() : String(r[10]),
+          id: String(r[11]), pinHash: String(r[12])
         };
       });
   },
@@ -46,7 +46,7 @@ var SheetDB = {
     list.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p.name; });
     var rows = list.map(function (p) {
       var w = p.wishes || [];
-      return [p.name, p.mystery || '', p.shopsFor || '', p.shopsFor ? (byNo[p.shopsFor] || '') : '',
+      return [p.name, p.mystery || '', p.alias || '', p.shopsFor || '', p.shopsFor ? (byNo[p.shopsFor] || '') : '',
         wishToCell_(w[0]), wishToCell_(w[1]), wishToCell_(w[2]), wishToCell_(w[3]), wishToCell_(w[4]),
         p.joinedAt, p.id, p.pinHash];
     });
@@ -60,7 +60,7 @@ var SheetDB = {
     vals.forEach(function (r) { if (r[0]) s[String(r[0]).trim()] = r[1]; });
     return {
       phase: String(s.phase || 'signup'), budget: Number(s.budget) || 500,
-      eventName: String(s.eventName || 'Mystery Kris Kringle'),
+      eventName: String(s.eventName || 'Favor Christmas Party 2027'),
       deadline: s.deadline instanceof Date ? Utilities.formatDate(s.deadline, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.deadline || ''),
       partyDate: s.partyDate instanceof Date ? Utilities.formatDate(s.partyDate, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.partyDate || ''),
       adminPassword: String(s.adminPassword || ''), salt: String(s.salt || '')
@@ -132,14 +132,15 @@ function setup() {
   players.getRange(1, 1, 1, PLAYER_HEADERS.length).setValues([PLAYER_HEADERS])
     .setFontWeight('bold').setBackground('#0f3d2e').setFontColor('#ffffff');
   players.setFrozenRows(1);
-  players.setColumnWidths(5, 5, 220);
+  players.setColumnWidth(3, 240);
+  players.setColumnWidths(6, 5, 220);
 
   var settings = ss.getSheetByName(SHEET_SETTINGS) || ss.insertSheet(SHEET_SETTINGS);
   if (settings.getLastRow() < 1) {
     settings.getRange(1, 1, 8, 3).setValues([
       ['Setting', 'Value', 'Notes'],
       ['adminPassword', 'change-me', 'Organizer password for the website. CHANGE THIS.'],
-      ['eventName', 'Mystery Kris Kringle', 'Shown at the top of the site'],
+      ['eventName', 'Favor Christmas Party 2027', 'Shown at the top of the site'],
       ['budget', 500, 'Gift budget in pesos'],
       ['deadline', '', 'Sign-up deadline, e.g. Dec 1'],
       ['partyDate', '', 'Party date, e.g. Dec 19'],

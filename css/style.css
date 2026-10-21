@@ -258,3 +258,16 @@ details summary { cursor: pointer; font-weight: 700; }
 .label-card { border: 3px dashed var(--berry); border-radius: 18px; padding: 22px; text-align: center; background: #fff; }
 .label-card .l1 { letter-spacing: .2em; text-transform: uppercase; font-weight: 700; color: var(--muted); font-size: .8rem; }
 .label-card .l2 { font-family: var(--display); font-weight: 900; font-size: 3.4rem; color: var(--berry); line-height: 1.1; }
+
+/* ---------- Animal names & test mode ---------- */
+.ticket .alias { font-family: var(--display); font-style: italic; font-weight: 700; font-size: clamp(1.15rem, 4.5vw, 1.5rem); color: var(--gold-soft); margin: 2px 0 10px; }
+.bag .alias-sm { font-size: .78rem; font-style: italic; color: var(--muted); line-height: 1.2; padding: 0 4px; }
+.bag.locked .alias-sm { color: var(--gold-soft); }
+.face.front .num { font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.1; padding: 0 10px; }
+.test-bar { background: #ede4ff; color: #3e2a75; border: 1px solid #d5c6fb; border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; font-size: .92rem; }
+.test-bar a { color: #3e2a75; font-weight: 700; margin-left: 6px; }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.tcard { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+.t-name { font-family: var(--display); font-weight: 900; font-size: 1.3rem; }
+.t-alias { color: var(--berry); font-weight: 700; font-size: .9rem; }
+.t-shop { margin-top: 10px; background: #fff8ef; border-radius: 10px; padding: 8px 10px; font-size: .9rem; }

@@ -228,11 +228,13 @@
   }
 
   function meDashboard(d) {
-    var sess = store('me') || {};
-    store('me', { name: d.name, pin: sess.pin, wishes: d.wishes });
+    var test = !!d.testMode;
+    if (!test) { var sess = store('me') || {}; store('me', { name: d.name, pin: sess.pin, wishes: d.wishes }); }
     var s = d.settings, html = '';
+    if (test) html += '<div class="test-bar">🧪 <b>Test mode</b> — this is exactly what <b>' + esc(d.name) + '</b> sees' +
+      (d.myMystery ? ' (they are secretly <b>#' + d.myMystery + ' ' + esc(d.myAlias) + '</b>)' : '') + '.</div>';
     html += '<div class="row" style="margin-bottom:14px"><h2 style="margin:0">Hi, ' + esc(d.name) + ' 👋</h2><span class="spacer"></span>' +
-      '<button class="btn ghost small" id="logout">Log out</button></div>';
+      (test ? '<a class="btn secondary small" href="#/test">← Back to everyone</a>' : '<button class="btn ghost small" id="logout">Log out</button>') + '</div>';
 
     if (s.phase === 'signup') {
       html += '<div class="card pine"><h3>⏳ Names haven\'t been drawn yet</h3><p style="margin:0">' +
@@ -241,22 +243,23 @@
     } else if (d.shoppingFor) {
       html += '<div class="ticket pop"><div class="label">You\'re shopping for</div>' +
         '<div class="big">Mystery #' + d.shoppingFor.no + '</div>' +
+        (d.shoppingFor.alias ? '<div class="alias">a.k.a. ' + esc(d.shoppingFor.alias) + '</div>' : '') +
         '<div class="sub">Budget ' + peso(s.budget) + (s.partyDate ? ' · Bring it on ' + esc(s.partyDate) : '') + '</div></div>' +
         '<div class="card"><h3>Their wishlist</h3>' + wishListHTML(d.shoppingFor.wishes) +
-        '<div class="notice" style="margin-top:16px"><b>Label your bag:</b> "Mystery Person #' + d.shoppingFor.no + '". ' +
+        '<div class="notice" style="margin-top:16px"><b>Label your bag:</b> "Mystery #' + d.shoppingFor.no + (d.shoppingFor.alias ? ' — ' + esc(d.shoppingFor.alias) : '') + '". ' +
         'Don\'t write your name or theirs anywhere on it. Keep it secret — even the number!</div></div>';
     }
     if (s.phase === 'revealed') {
       html += '<div class="card center"><h3>The reveal is live ✨</h3>' +
-        (d.myMystery ? '<p>You were <b>Mystery Person #' + d.myMystery + '</b>. Find whoever has bag #' + d.myMystery + ' and start trading!</p>' : '') +
+        (d.myMystery && s.phase === 'revealed' ? '<p>You were <b>Mystery #' + d.myMystery + (d.myAlias ? ' — ' + esc(d.myAlias) : '') + '</b>. Find whoever has bag #' + d.myMystery + ' and start trading!</p>' : '') +
         '<a class="btn gold" href="#/reveal">Watch the reveal</a></div>';
     }
     html += '<div class="card"><div class="row"><h3 style="margin:0">My wishlist</h3><span class="spacer"></span>' +
-      (s.phase !== 'revealed' ? '<a class="btn secondary small" href="#/join">Edit</a>' : '') + '</div>' +
+      (s.phase !== 'revealed' && !test ? '<a class="btn secondary small" href="#/join">Edit</a>' : '') + '</div>' +
       '<div style="margin-top:12px">' + wishListHTML(d.wishes) + '</div></div>';
     render(html);
-    if (d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
-    $('#logout').onclick = function () { store('me', null); meLogin(); };
+    if (!test && d.shoppingFor && !store('seen-' + d.shoppingFor.no)) { confetti(120); store('seen-' + d.shoppingFor.no, 1); }
+    if ($('#logout')) $('#logout').onclick = function () { store('me', null); meLogin(); };
   }
 
   // =====================================================================
@@ -311,7 +314,7 @@
 
     var rows = ps.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (p) {
       return '<tr><td><b>' + esc(p.name) + '</b><div class="wish-mini">' + p.wishes.map(function (w) { return esc(w.item); }).join(' · ') + '</div></td>' +
-        (showSecrets ? '<td>' + (p.mystery ? '<span class="tag">#' + p.mystery + '</span>' : '—') + '</td>' +
+        (showSecrets ? '<td>' + (p.mystery ? '<span class="tag">#' + p.mystery + '</span><div class="wish-mini">' + esc(p.alias) + '</div>' : '—') + '</td>' +
           '<td>' + (p.shopsFor ? '<span class="tag berry">#' + p.shopsFor + '</span> ' + esc(p.shopsForName) : '—') + '</td>' : '') +
         '<td style="white-space:nowrap"><button class="btn ghost small" data-pin="' + esc(p.id) + '" data-name="' + esc(p.name) + '">Reset PIN</button>' +
         (s.phase === 'signup' ? '<button class="btn ghost small" data-rm="' + esc(p.id) + '" data-name="' + esc(p.name) + '">Remove</button>' : '') + '</td></tr>';
@@ -327,6 +330,8 @@
         '<div class="stat"><div class="n">' + (s.partyDate ? esc(s.partyDate) : '—') + '</div><div class="l">party day</div></div>' +
       '</div>' +
       '<div class="card"><h3>Next step</h3>' + actions + '<div id="actErr" hidden></div></div>' +
+      '<div class="card row"><div><h3 style="margin:0">🧪 Test mode</h3><p class="small muted" style="margin:4px 0 0">See everyone at once, open anyone\'s page without their PIN, and preview the reveal privately.</p></div>' +
+        '<span class="spacer"></span><a class="btn secondary" href="#/test">Open test mode</a></div>' +
       '<div class="card"><div class="row"><h3 style="margin:0">Players</h3><span class="spacer"></span>' +
         '<button class="btn secondary small" id="secrets">' + (showSecrets ? '🙈 Hide secrets' : '👀 Show who\'s who') + '</button></div>' +
         (showSecrets ? '<p class="small muted">Careful — don\'t show this on a projector!</p>' : '<p class="small muted">Mystery numbers and who-shops-for-whom are hidden so you can keep this screen open safely.</p>') +
@@ -406,6 +411,7 @@
       (opts.badge ? '<span class="badge">' + opts.badge + '</span>' : '') +
       '<div class="ico">' + (b.holder ? '🎁' : '🛍️') + '</div>' +
       '<div class="no">#' + b.no + '</div>' +
+      (b.alias ? '<div class="alias-sm">' + esc(b.alias) + '</div>' : '') +
       '<div class="who' + (b.holder ? '' : ' free') + '">' + (b.holder ? esc(b.holder) : 'On the table') + '</div>' +
       (g.maxSteals ? '<div class="steals" title="Times stolen">' + dots + '</div>' : '') +
       '</div>';
@@ -529,8 +535,8 @@
           return '<option' + (n === b.holder ? ' selected' : '') + '>' + esc(n) + '</option>';
         }).join('');
         var box = openModal(
-          '<h2>Bag #' + no + '</h2>' +
-          '<p class="muted">Wishlist of Mystery Person #' + no + ' (no names shown — safe for the big screen):</p>' +
+          '<h2>Bag #' + no + (b.alias ? ' · ' + esc(b.alias) : '') + '</h2>' +
+          '<p class="muted">Wishlist of Mystery #' + no + ' (no names shown — safe for the big screen):</p>' +
           wishListHTML(wishes[no]) +
           '<details style="margin-top:18px"><summary>Fix who holds this bag</summary>' +
             '<label>Holder</label><select id="fixHolder">' + opts + '</select>' +
@@ -668,6 +674,8 @@
 
   function stage(d) {
     var list = d.list, idx = -1, flipped = false;
+    var banner = d.preview ? '<div class="test-bar">🧪 <b>Private preview</b> — only you can see this. The real reveal stays locked until you start it. <a href="#/test">Exit preview</a></div>' : '';
+    var render = function (html) { app.innerHTML = banner + html; };
     function show() {
       if (idx < 0) {
         render('<div class="reveal-stage"><span class="phase-pill">The big reveal</span>' +
@@ -683,9 +691,9 @@
       render('<div class="reveal-stage">' +
         '<div class="dots">' + dots + '</div>' +
         '<div class="flip' + (flipped ? ' flipped' : '') + '" id="card"><div class="flip-inner">' +
-          '<div class="face front"><div class="lbl">Mystery Person</div><div class="num">#' + r.no + '</div><div class="q-mark">?</div>' +
+          '<div class="face front"><div class="lbl">Mystery #' + r.no + '</div><div class="num">' + esc(r.alias || ('Mystery Person #' + r.no)) + '</div><div class="q-mark">?</div>' +
             '<div class="small" style="opacity:.8;margin-top:10px">Tap to reveal</div></div>' +
-          '<div class="face back"><div class="was">Mystery Person #' + r.no + ' was…</div><div class="name">' + esc(r.name) + '</div>' +
+          '<div class="face back"><div class="was">#' + r.no + ' ' + esc(r.alias) + ' was…</div><div class="name">' + esc(r.name) + '</div>' +
             '<div class="meta">' + (r.giver ? '<span>🎅 Gift from <b>' + esc(r.giver) + '</b></span>' : '') +
             (r.holder ? '<span>🎁 Bag is with <b>' + esc(r.holder) + '</b></span>' : '') + '</div>' +
             wishListHTML(r.wishes) + '</div>' +
@@ -710,7 +718,7 @@
       render('<div class="reveal-stage" style="justify-content:flex-start">' +
         '<h1>Merry Christmas! 🎄</h1><p class="muted">Now go find your bag and start trading!</p>' +
         '<div class="summary">' + list.map(function (r) {
-          return '<div class="s"><div class="t">#' + r.no + ' · ' + esc(r.name) + '</div>' +
+          return '<div class="s"><div class="small muted">#' + r.no + ' ' + esc(r.alias) + '</div><div class="t">' + esc(r.name) + '</div>' +
             '<div class="small muted">' + (r.giver ? 'Gift from ' + esc(r.giver) : '') + (r.holder ? ' · Bag with ' + esc(r.holder) : '') + '</div>' +
             '<div class="small" style="margin-top:6px">' + r.wishes.map(function (w) { return esc(w.item); }).join(' · ') + '</div></div>';
         }).join('') + '</div>' +
@@ -729,9 +737,57 @@
   document.addEventListener('keydown', function (e) { if (keyHandler) keyHandler(e); });
 
   // =====================================================================
+  // TEST MODE (organizer only): see everyone, open anyone's page
+  // =====================================================================
+  function viewTest() {
+    app.classList.add('wide');
+    if (!adminPw()) return adminLogin(viewTest);
+    var parts = location.hash.split('/');
+    if (parts[2] === 'as' && parts[3]) {
+      loading();
+      return API.call('viewAs', { password: adminPw(), id: decodeURIComponent(parts[3]) }).then(function (d) {
+        app.classList.remove('wide'); meDashboard(d);
+      }).catch(function (e) { render('<div class="error">' + esc(e.message) + '</div>'); });
+    }
+    loading();
+    API.call('adminList', { password: adminPw() }).then(function (d) {
+      var ps = d.players, s = d.settings;
+      var byNo = {}; ps.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p; });
+      var drawn = ps.some(function (p) { return p.mystery; });
+      var cards = ps.slice().sort(function (a, b) { return (a.mystery || 999) - (b.mystery || 999) || a.name.localeCompare(b.name); }).map(function (p) {
+        var t = p.shopsFor ? byNo[p.shopsFor] : null;
+        return '<div class="tcard">' +
+          '<div class="row"><div><div class="t-name">' + esc(p.name) + '</div>' +
+            (p.mystery ? '<div class="t-alias">#' + p.mystery + ' · ' + esc(p.alias) + '</div>' : '<div class="t-alias muted">Not drawn yet</div>') + '</div>' +
+            '<span class="spacer"></span><a class="btn small" href="#/test/as/' + encodeURIComponent(p.id) + '">Open as ' + esc(p.name.split(' ')[0]) + '</a></div>' +
+          (t ? '<div class="t-shop">🎅 Shopping for <b>#' + t.mystery + ' ' + esc(t.alias) + '</b> (' + esc(t.name) + ')</div>' : '') +
+          '<div class="wish-mini" style="margin-top:8px">' + p.wishes.map(function (w) { return esc(w.item); }).join(' · ') + '</div>' +
+        '</div>';
+      }).join('');
+      render(
+        '<div class="test-bar">🧪 <b>Test mode</b> — you\'re seeing everything. Don\'t put this on the projector!</div>' +
+        '<div class="row" style="margin-bottom:16px"><h1 style="margin:0;font-size:2rem">Everyone</h1><span class="phase-pill">' + s.phase + '</span><span class="spacer"></span>' +
+          '<a class="btn ghost small" href="#/organizer">← Organizer</a>' +
+          (drawn ? '<button class="btn secondary small" id="preview">Preview the reveal (just you)</button>' : '') +
+          '<a class="btn secondary small" href="#/board">Party board</a></div>' +
+        (drawn ? '' : '<div class="notice">Names haven\'t been drawn yet, so nobody has a Mystery # or animal name. Draw names on the Organizer page to see the full picture.</div>') +
+        (API.demo && !ps.length ? '<div class="notice">No one here yet — add sample people from the Organizer page.</div>' : '') +
+        '<div class="tgrid">' + cards + '</div>'
+      );
+      if ($('#preview')) $('#preview').onclick = function () {
+        var list = ps.filter(function (p) { return p.mystery; }).map(function (p) {
+          var giver = ps.filter(function (x) { return x.shopsFor === p.mystery; })[0];
+          return { no: p.mystery, alias: p.alias, name: p.name, giver: giver ? giver.name : '', wishes: p.wishes, holder: '' };
+        }).sort(function (a, b) { return a.no - b.no; });
+        stage({ list: list, preview: true });
+      };
+    }).catch(function (e) { if (/password/i.test(e.message)) { store('admin', null); adminLogin(viewTest); } else render('<div class="error">' + esc(e.message) + '</div>'); });
+  }
+
+  // =====================================================================
   // ROUTER
   // =====================================================================
-  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal };
+  var routes = { '': viewHome, join: viewJoin, me: viewMe, organizer: viewOrganizer, board: viewBoard, reveal: viewReveal, test: viewTest };
   function route() {
     timers.forEach(clearInterval); timers = [];
     keyHandler = null; closeModal();

@@ -23,7 +23,7 @@
     if (raw) { try { return JSON.parse(raw); } catch (e) {} }
     return {
       players: [], game: null,
-      settings: { phase: 'signup', budget: 500, eventName: 'Mystery Kris Kringle', deadline: 'Dec 1', partyDate: 'Dec 19', adminPassword: 'demo', salt: 'demo-salt' }
+      settings: { phase: 'signup', budget: 500, eventName: 'Favor Christmas Party 2027', deadline: 'Dec 1', partyDate: 'Dec 19', adminPassword: 'demo', salt: 'demo-salt' }
     };
   }
   var mem = demoLoad();
