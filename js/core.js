@@ -1,0 +1,341 @@
+/*
+ * Mystery Kris Kringle — game core.
+ *
+ * This one file is the "brain" of the game. It runs in two places:
+ *   1. Inside Google Apps Script (copied into apps-script/Code.gs by tools/build.js)
+ *   2. In the browser, for Demo Mode (no Google Sheet needed)
+ *
+ * It never touches storage directly: it gets a `db` adapter and a `hash` function.
+ *   db.getPlayers()        -> [{id, name, pinHash, wishes:[{item, link}], mystery, shopsFor, joinedAt}]
+ *   db.savePlayers(list)
+ *   db.getSettings()       -> {phase, budget, eventName, deadline, partyDate, adminPassword, salt}
+ *   db.saveSettings(obj)
+ *   db.getGame()           -> game object (see newGame) or null
+ *   db.saveGame(game)
+ *   db.getTrivia()         -> [{q, a}]
+ *   hash(text)             -> string
+ */
+var KKCore = (function () {
+  var PHASES = ['signup', 'drawn', 'revealed'];
+  var MAX_WISHES = 5;
+  var MIN_WISHES = 3;
+
+  function fail(msg) { var e = new Error(msg); e.userFacing = true; throw e; }
+
+  function clean(s, max) {
+    return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, max || 200);
+  }
+  function key(name) { return clean(name, 60).toLowerCase(); }
+
+  function cleanLink(s) {
+    s = clean(s, 500);
+    if (!s) return '';
+    if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+    return s;
+  }
+
+  function cleanWishes(wishes) {
+    if (!Array.isArray(wishes)) fail('Please add your wishlist.');
+    var out = [];
+    for (var i = 0; i < wishes.length && out.length < MAX_WISHES; i++) {
+      var w = wishes[i] || {};
+      var item = clean(w.item, 140);
+      if (item) out.push({ item: item, link: cleanLink(w.link) });
+    }
+    if (out.length < MIN_WISHES) fail('Please list at least ' + MIN_WISHES + ' gift ideas.');
+    return out;
+  }
+
+  function checkPin(pin) {
+    pin = String(pin == null ? '' : pin).trim();
+    if (!/^\d{4}$/.test(pin)) fail('Your PIN must be exactly 4 digits.');
+    return pin;
+  }
+
+  function pinHash(hash, settings, name, pin) {
+    return hash((settings.salt || '') + '|' + key(name) + '|' + pin);
+  }
+
+  function findPlayer(players, name) {
+    var k = key(name);
+    for (var i = 0; i < players.length; i++) if (key(players[i].name) === k) return players[i];
+    return null;
+  }
+
+  function login(db, hash, p) {
+    var name = clean(p.name, 60);
+    if (!name) fail('Please enter your name.');
+    var pin = checkPin(p.pin);
+    var players = db.getPlayers();
+    var me = findPlayer(players, name);
+    if (!me || me.pinHash !== pinHash(hash, db.getSettings(), name, pin)) {
+      fail("That name and PIN don't match anyone. Check the spelling, or sign up first.");
+    }
+    return { me: me, players: players };
+  }
+
+  function byMystery(players, no) {
+    for (var i = 0; i < players.length; i++) if (players[i].mystery === no) return players[i];
+    return null;
+  }
+
+  function shuffle(arr, rand) {
+    rand = rand || Math.random;
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(rand() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function newGame(count) {
+    var bags = [];
+    for (var i = 1; i <= count; i++) bags.push({ no: i, holder: '', steals: 0 });
+    return {
+      bags: bags,
+      scores: {},          // name -> correct answers this round
+      target: 3,           // correct answers needed to pick a bag
+      maxSteals: 2,        // a bag is locked after being stolen this many times
+      holdersSitOut: true, // people holding a bag stop answering trivia
+      resetEachRound: true,// everyone's score resets after a bag is picked
+      qIndex: 0,
+      showAnswer: false,
+      log: [],
+      updatedAt: 0
+    };
+  }
+
+  function publicSettings(s, count) {
+    return {
+      phase: s.phase || 'signup',
+      budget: s.budget || 500,
+      eventName: s.eventName || 'Mystery Kris Kringle',
+      deadline: s.deadline || '',
+      partyDate: s.partyDate || '',
+      count: count
+    };
+  }
+
+  function requireAdmin(db, p) {
+    var s = db.getSettings();
+    if (!s.adminPassword) fail('No organizer password is set yet. Add one in the Settings tab of the Google Sheet.');
+    if (String(p.password || '') !== String(s.adminPassword)) fail('Wrong organizer password.');
+    return s;
+  }
+
+  var ops = {
+    // ---------- Public ----------
+    info: function (db) {
+      return publicSettings(db.getSettings(), db.getPlayers().length);
+    },
+
+    join: function (db, hash, p) {
+      var s = db.getSettings();
+      var name = clean(p.name, 60);
+      if (name.length < 2) fail('Please enter your name (as people at the party know you).');
+      var pin = checkPin(p.pin);
+      var wishes = cleanWishes(p.wishes);
+      var players = db.getPlayers();
+      var existing = findPlayer(players, name);
+      if (existing) {
+        if (existing.pinHash !== pinHash(hash, s, name, pin)) {
+          fail('Someone already signed up as "' + existing.name + '". If that\'s you, use the PIN you chose. Otherwise add your last name or initial.');
+        }
+        if (s.phase === 'revealed') fail('The party is over — wishlists are locked.');
+        existing.wishes = wishes;
+        db.savePlayers(players);
+        return { ok: true, updated: true, name: existing.name };
+      }
+      if (s.phase !== 'signup') fail('Sign-ups are closed — the names have already been drawn. Ask the organizer to reopen sign-ups.');
+      players.push({
+        id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
+        name: name,
+        pinHash: pinHash(hash, s, name, pin),
+        wishes: wishes,
+        mystery: 0,
+        shopsFor: 0,
+        joinedAt: new Date().toISOString()
+      });
+      db.savePlayers(players);
+      return { ok: true, updated: false, name: name };
+    },
+
+    me: function (db, hash, p) {
+      var r = login(db, hash, p);
+      var s = db.getSettings();
+      var out = {
+        name: r.me.name,
+        wishes: r.me.wishes,
+        settings: publicSettings(s, r.players.length),
+        shoppingFor: null
+      };
+      if (s.phase !== 'signup' && r.me.shopsFor) {
+        var target = byMystery(r.players, r.me.shopsFor);
+        if (target) out.shoppingFor = { no: target.mystery, wishes: target.wishes };
+      }
+      if (s.phase === 'revealed') out.myMystery = r.me.mystery;
+      return out;
+    },
+
+    // Read-only party board for anyone's phone
+    board: function (db) {
+      var s = db.getSettings();
+      var g = db.getGame();
+      if (!g) return { phase: s.phase || 'signup', game: null };
+      var trivia = db.getTrivia();
+      var q = trivia[g.qIndex] || null;
+      return {
+        phase: s.phase,
+        game: {
+          bags: g.bags, scores: g.scores, target: g.target, maxSteals: g.maxSteals,
+          log: (g.log || []).slice(-8), updatedAt: g.updatedAt,
+          question: q ? { n: g.qIndex + 1, total: trivia.length, q: q.q, a: g.showAnswer ? q.a : '' } : null
+        }
+      };
+    },
+
+    reveal: function (db) {
+      var s = db.getSettings();
+      if (s.phase !== 'revealed') fail('No peeking! The reveal hasn\'t started yet.');
+      var players = db.getPlayers();
+      var list = [];
+      for (var i = 0; i < players.length; i++) {
+        var p = players[i];
+        if (!p.mystery) continue;
+        var giver = null;
+        for (var j = 0; j < players.length; j++) if (players[j].shopsFor === p.mystery) giver = players[j].name;
+        list.push({ no: p.mystery, name: p.name, giver: giver || '', wishes: p.wishes });
+      }
+      list.sort(function (a, b) { return a.no - b.no; });
+      var g = db.getGame();
+      if (g) list.forEach(function (r) { r.holder = (g.bags[r.no - 1] || {}).holder || ''; });
+      return { eventName: s.eventName || 'Mystery Kris Kringle', list: list };
+    },
+
+    // ---------- Organizer ----------
+    adminCheck: function (db, hash, p) { requireAdmin(db, p); return { ok: true }; },
+
+    adminList: function (db, hash, p) {
+      var s = requireAdmin(db, p);
+      var players = db.getPlayers();
+      return {
+        settings: publicSettings(s, players.length),
+        players: players.map(function (x) {
+          var target = x.shopsFor ? byMystery(players, x.shopsFor) : null;
+          return {
+            id: x.id, name: x.name, wishes: x.wishes, mystery: x.mystery,
+            shopsFor: x.shopsFor, shopsForName: target ? target.name : '', joinedAt: x.joinedAt
+          };
+        })
+      };
+    },
+
+    draw: function (db, hash, p, rand) {
+      var s = requireAdmin(db, p);
+      var players = db.getPlayers();
+      if (players.length < 3) fail('You need at least 3 people to draw names.');
+      // Random Mystery numbers 1..N
+      var nums = shuffle(players.map(function (_, i) { return i + 1; }), rand);
+      players.forEach(function (pl, i) { pl.mystery = nums[i]; });
+      // One big random circle: each person shops for the next one, never themselves
+      var circle = shuffle(players.slice(), rand);
+      for (var i = 0; i < circle.length; i++) circle[i].shopsFor = circle[(i + 1) % circle.length].mystery;
+      db.savePlayers(players);
+      s.phase = 'drawn';
+      db.saveSettings(s);
+      var g = newGame(players.length);
+      g.updatedAt = Date.now();
+      db.saveGame(g);
+      return { ok: true, count: players.length };
+    },
+
+    reopen: function (db, hash, p) {
+      var s = requireAdmin(db, p);
+      var players = db.getPlayers();
+      players.forEach(function (pl) { pl.mystery = 0; pl.shopsFor = 0; });
+      db.savePlayers(players);
+      s.phase = 'signup';
+      db.saveSettings(s);
+      db.saveGame(null);
+      return { ok: true };
+    },
+
+    setPhase: function (db, hash, p) {
+      var s = requireAdmin(db, p);
+      if (PHASES.indexOf(p.phase) < 0) fail('Unknown phase.');
+      if (p.phase !== 'signup' && !db.getPlayers().some(function (x) { return x.mystery; })) fail('Draw names first.');
+      s.phase = p.phase;
+      db.saveSettings(s);
+      return { ok: true };
+    },
+
+    saveSettings: function (db, hash, p) {
+      var s = requireAdmin(db, p);
+      var v = p.values || {};
+      if (v.eventName != null) s.eventName = clean(v.eventName, 80);
+      if (v.budget != null) s.budget = Math.max(0, parseInt(v.budget, 10) || 0);
+      if (v.deadline != null) s.deadline = clean(v.deadline, 40);
+      if (v.partyDate != null) s.partyDate = clean(v.partyDate, 40);
+      db.saveSettings(s);
+      return { ok: true };
+    },
+
+    removePlayer: function (db, hash, p) {
+      var s = requireAdmin(db, p);
+      if (s.phase !== 'signup') fail('Reopen sign-ups before removing someone (this clears the draw).');
+      var players = db.getPlayers().filter(function (x) { return x.id !== p.id; });
+      db.savePlayers(players);
+      return { ok: true };
+    },
+
+    resetPin: function (db, hash, p) {
+      var s = requireAdmin(db, p);
+      var pin = checkPin(p.pin);
+      var players = db.getPlayers();
+      var me = null;
+      players.forEach(function (x) { if (x.id === p.id) me = x; });
+      if (!me) fail('Player not found.');
+      me.pinHash = pinHash(hash, s, me.name, pin);
+      db.savePlayers(players);
+      return { ok: true };
+    },
+
+    gameLoad: function (db, hash, p) {
+      requireAdmin(db, p);
+      var players = db.getPlayers();
+      return {
+        game: db.getGame(),
+        trivia: db.getTrivia(),
+        names: players.map(function (x) { return x.name; }).sort(),
+        wishesByBag: players.filter(function (x) { return x.mystery; })
+          .map(function (x) { return { no: x.mystery, wishes: x.wishes }; })
+          .sort(function (a, b) { return a.no - b.no; })
+      };
+    },
+
+    gameSave: function (db, hash, p) {
+      requireAdmin(db, p);
+      var g = p.game;
+      if (!g || !Array.isArray(g.bags)) fail('Bad game data.');
+      g.updatedAt = Date.now();
+      if (g.log && g.log.length > 200) g.log = g.log.slice(-200);
+      db.saveGame(g);
+      return { ok: true, updatedAt: g.updatedAt };
+    }
+  };
+
+  var PUBLIC = { info: 1, join: 1, me: 1, board: 1, reveal: 1 };
+
+  function handle(db, hash, op, payload, rand) {
+    try {
+      if (!ops[op]) fail('Unknown request.');
+      return { ok: true, data: ops[op](db, hash, payload || {}, rand) };
+    } catch (e) {
+      return { ok: false, error: e.userFacing ? e.message : ('Something went wrong: ' + e.message) };
+    }
+  }
+
+  return { handle: handle, newGame: newGame, PUBLIC: PUBLIC, MAX_WISHES: MAX_WISHES, MIN_WISHES: MIN_WISHES };
+})();
+
+if (typeof module !== 'undefined') module.exports = KKCore;

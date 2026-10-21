@@ -1,0 +1,163 @@
+/* ===================== Google Sheet storage + web endpoint ===================== */
+
+var SHEET_PLAYERS = 'Players';
+var SHEET_SETTINGS = 'Settings';
+var SHEET_TRIVIA = 'Trivia';
+var PLAYER_HEADERS = ['Name', 'Mystery #', 'Shops for Mystery #', 'Shops for (name)',
+  'Wish 1', 'Wish 2', 'Wish 3', 'Wish 4', 'Wish 5', 'Joined', 'ID', 'PIN hash (do not edit)'];
+
+function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+
+function sheet_(name) {
+  var sh = ss_().getSheetByName(name);
+  if (!sh) throw new Error('Missing "' + name + '" tab. Run the setup function first.');
+  return sh;
+}
+
+function wishToCell_(w) { return w ? (w.link ? w.item + '  |  ' + w.link : w.item) : ''; }
+function cellToWish_(c) {
+  c = String(c || '').trim();
+  if (!c) return null;
+  var i = c.lastIndexOf('|');
+  if (i > 0 && /https?:\/\//.test(c.slice(i))) return { item: c.slice(0, i).trim(), link: c.slice(i + 1).trim() };
+  return { item: c, link: '' };
+}
+
+var SheetDB = {
+  getPlayers: function () {
+    var sh = sheet_(SHEET_PLAYERS);
+    var n = sh.getLastRow() - 1;
+    if (n < 1) return [];
+    return sh.getRange(2, 1, n, PLAYER_HEADERS.length).getValues()
+      .filter(function (r) { return String(r[0]).trim() && r[10]; })
+      .map(function (r) {
+        var wishes = [];
+        for (var i = 4; i <= 8; i++) { var w = cellToWish_(r[i]); if (w) wishes.push(w); }
+        return {
+          name: String(r[0]).trim(), mystery: Number(r[1]) || 0, shopsFor: Number(r[2]) || 0,
+          wishes: wishes, joinedAt: r[9] instanceof Date ? r[9].toISOString() : String(r[9]),
+          id: String(r[10]), pinHash: String(r[11])
+        };
+      });
+  },
+  savePlayers: function (list) {
+    var sh = sheet_(SHEET_PLAYERS);
+    var byNo = {};
+    list.forEach(function (p) { if (p.mystery) byNo[p.mystery] = p.name; });
+    var rows = list.map(function (p) {
+      var w = p.wishes || [];
+      return [p.name, p.mystery || '', p.shopsFor || '', p.shopsFor ? (byNo[p.shopsFor] || '') : '',
+        wishToCell_(w[0]), wishToCell_(w[1]), wishToCell_(w[2]), wishToCell_(w[3]), wishToCell_(w[4]),
+        p.joinedAt, p.id, p.pinHash];
+    });
+    var last = sh.getLastRow();
+    if (last > 1) sh.getRange(2, 1, last - 1, PLAYER_HEADERS.length).clearContent();
+    if (rows.length) sh.getRange(2, 1, rows.length, PLAYER_HEADERS.length).setValues(rows);
+  },
+  getSettings: function () {
+    var vals = sheet_(SHEET_SETTINGS).getDataRange().getValues();
+    var s = {};
+    vals.forEach(function (r) { if (r[0]) s[String(r[0]).trim()] = r[1]; });
+    return {
+      phase: String(s.phase || 'signup'), budget: Number(s.budget) || 500,
+      eventName: String(s.eventName || 'Mystery Kris Kringle'),
+      deadline: s.deadline instanceof Date ? Utilities.formatDate(s.deadline, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.deadline || ''),
+      partyDate: s.partyDate instanceof Date ? Utilities.formatDate(s.partyDate, Session.getScriptTimeZone(), 'MMM d, yyyy') : String(s.partyDate || ''),
+      adminPassword: String(s.adminPassword || ''), salt: String(s.salt || '')
+    };
+  },
+  saveSettings: function (s) {
+    var sh = sheet_(SHEET_SETTINGS);
+    var vals = sh.getDataRange().getValues();
+    ['phase', 'budget', 'eventName', 'deadline', 'partyDate'].forEach(function (k) {
+      var row = -1;
+      for (var i = 0; i < vals.length; i++) if (String(vals[i][0]).trim() === k) row = i + 1;
+      if (row < 0) { sh.appendRow([k, s[k]]); vals.push([k, s[k]]); }
+      else sh.getRange(row, 2).setValue(s[k]);
+    });
+  },
+  getGame: function () {
+    var raw = PropertiesService.getScriptProperties().getProperty('GAME');
+    return raw ? JSON.parse(raw) : null;
+  },
+  saveGame: function (g) {
+    var props = PropertiesService.getScriptProperties();
+    if (g) props.setProperty('GAME', JSON.stringify(g)); else props.deleteProperty('GAME');
+  },
+  getTrivia: function () {
+    var sh = ss_().getSheetByName(SHEET_TRIVIA);
+    if (!sh || sh.getLastRow() < 2) return KK_TRIVIA_SEED;
+    return sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues()
+      .filter(function (r) { return String(r[0]).trim(); })
+      .map(function (r) { return { q: String(r[0]).trim(), a: String(r[1]).trim() }; });
+  }
+};
+
+function sha256_(text) {
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
+  return bytes.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+}
+
+function respond_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function run_(op, payload) {
+  // Reads don't need the lock; anything that might write does.
+  if (op === 'info' || op === 'board' || op === 'reveal') return KKCore.handle(SheetDB, sha256_, op, payload);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: 'The site is busy — please try again in a few seconds.' };
+  try { return KKCore.handle(SheetDB, sha256_, op, payload); }
+  finally { lock.releaseLock(); }
+}
+
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  return respond_(run_(p.op || 'info', p));
+}
+
+function doPost(e) {
+  var body = {};
+  try { body = JSON.parse(e.postData.contents || '{}'); } catch (err) { return respond_({ ok: false, error: 'Bad request.' }); }
+  return respond_(run_(body.op, body.payload || {}));
+}
+
+/**
+ * RUN THIS ONCE (select "setup" in the toolbar, then click Run).
+ * It creates the Players, Settings and Trivia tabs.
+ */
+function setup() {
+  var ss = ss_();
+  var players = ss.getSheetByName(SHEET_PLAYERS) || ss.insertSheet(SHEET_PLAYERS);
+  players.getRange(1, 1, 1, PLAYER_HEADERS.length).setValues([PLAYER_HEADERS])
+    .setFontWeight('bold').setBackground('#0f3d2e').setFontColor('#ffffff');
+  players.setFrozenRows(1);
+  players.setColumnWidths(5, 5, 220);
+
+  var settings = ss.getSheetByName(SHEET_SETTINGS) || ss.insertSheet(SHEET_SETTINGS);
+  if (settings.getLastRow() < 1) {
+    settings.getRange(1, 1, 8, 3).setValues([
+      ['Setting', 'Value', 'Notes'],
+      ['adminPassword', 'change-me', 'Organizer password for the website. CHANGE THIS.'],
+      ['eventName', 'Mystery Kris Kringle', 'Shown at the top of the site'],
+      ['budget', 500, 'Gift budget in pesos'],
+      ['deadline', '', 'Sign-up deadline, e.g. Dec 1'],
+      ['partyDate', '', 'Party date, e.g. Dec 19'],
+      ['phase', 'signup', 'Managed by the website: signup / drawn / revealed'],
+      ['salt', Utilities.getUuid(), 'Used to scramble PINs. Do not change after people sign up.']
+    ]);
+    settings.getRange(1, 1, 1, 3).setFontWeight('bold');
+    settings.setColumnWidth(1, 140); settings.setColumnWidth(2, 260); settings.setColumnWidth(3, 380);
+  }
+
+  var trivia = ss.getSheetByName(SHEET_TRIVIA) || ss.insertSheet(SHEET_TRIVIA);
+  if (trivia.getLastRow() < 2) {
+    trivia.getRange(1, 1, 1, 2).setValues([['Question', 'Answer']]).setFontWeight('bold');
+    trivia.getRange(2, 1, KK_TRIVIA_SEED.length, 2).setValues(KK_TRIVIA_SEED.map(function (t) { return [t.q, t.a]; }));
+    trivia.setColumnWidth(1, 560); trivia.setColumnWidth(2, 260);
+  }
+
+  var first = ss.getSheets()[0];
+  if (first.getName() === 'Sheet1' && first.getLastRow() === 0) ss.deleteSheet(first);
+  SpreadsheetApp.getUi && SpreadsheetApp.getActive().toast('All set! Now change adminPassword in the Settings tab, then Deploy → New deployment.');
+}
